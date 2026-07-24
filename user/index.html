@@ -1,0 +1,1513 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Civic Reporting System</title>
+
+    <!-- Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Tailwind config for custom theme -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["system-ui", "Inter", "ui-sans-serif", "sans-serif"],
+            },
+            colors: {
+              primary: {
+                50: "#EEF2FF",
+                100: "#E0EAFF",
+                500: "#4F46E5",
+                600: "#4338CA",
+                700: "#3730A3",
+              },
+              accent: {
+                500: "#06B6D4",
+                600: "#0891B2",
+              },
+            },
+            boxShadow: {
+              soft: "0 18px 45px rgba(15, 23, 42, 0.25)",
+            },
+            cursor: {
+              "zoom-in": "zoom-in",
+            },
+            keyframes: {
+              "slide-up": {
+                "0%": { transform: "translateY(100%)", opacity: "0" },
+                "100%": { transform: "translateY(0)", opacity: "1" },
+              },
+            },
+            animation: {
+              "slide-up": "slide-up 0.4s ease-out",
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- React 18 UMD -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  </head>
+  <body
+    class="min-h-screen bg-slate-950 bg-[radial-gradient(circle_at_top,_#1d4ed8_0,_#020617_45%,_#020617_100%)] text-slate-100 antialiased"
+  >
+    <!-- Subtle grid background overlay -->
+    <div
+      class="pointer-events-none fixed inset-0 opacity-[0.06] bg-[radial-gradient(circle,_#ffffff_1px,_transparent_1px)] [background-size:22px_22px]"
+    ></div>
+
+    <div id="root" class="relative z-10"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useMemo } = window.React;
+      const { createRoot } = window.ReactDOM;
+
+      const issueTypes = [
+        { value: "garbage", label: "Garbage", color: "bg-yellow-500" },
+        {
+          value: "streetlights",
+          label: "Street Lights",
+          color: "bg-amber-500",
+        },
+        { value: "waterleak", label: "Water Leak", color: "bg-sky-500" },
+        { value: "sewage", label: "Sewage", color: "bg-emerald-600" },
+        { value: "pothole", label: "Pothole", color: "bg-rose-600" },
+      ];
+
+      const statusFilters = [
+        { value: "all", label: "All" },
+        { value: "pending", label: "Pending" },
+        { value: "accepted", label: "Accepted" },
+        { value: "completed", label: "Completed" },
+        { value: "rejected", label: "Rejected" },
+      ];
+
+      function getIssueConfig(type) {
+        return issueTypes.find((t) => t.value === type) || issueTypes[0];
+      }
+
+      function Footer() {
+        return (
+          <footer className="mt-auto border-t border-white/10 bg-slate-950/80 backdrop-blur">
+            <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-center text-[11px] text-slate-400">
+              <span className="text-center">
+                © {new Date().getFullYear()} Smart Civic Reporting System. All
+                rights reserved.
+              </span>
+            </div>
+          </footer>
+        );
+      }
+
+      // ── Image Modal Component ───────────────────────────────────────────────
+      function ImageModal({ src, alt, onClose }) {
+        if (!src) return null;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+            onClick={onClose}
+          >
+            <div className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center">
+              <button
+                className="absolute top-4 right-4 z-10 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-2 transition"
+                onClick={onClose}
+              >
+                <svg
+                  className="w-7 h-7"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+
+              <img
+                src={src}
+                alt={alt || "Enlarged image"}
+                className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border border-white/10"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+        );
+      }
+
+      function Toast({ message, type = "success", onClose }) {
+        if (!message) return null;
+
+        const bgColor =
+          type === "success"
+            ? "bg-emerald-600/90 border-emerald-500"
+            : "bg-rose-600/90 border-rose-500";
+
+        useEffect(() => {
+          const timer = setTimeout(() => onClose(), 4000); // auto-dismiss after 4 seconds
+          return () => clearTimeout(timer);
+        }, [onClose]);
+
+        return (
+          <div className="fixed bottom-6 right-6 z-50 max-w-sm animate-slide-up">
+            <div
+              className={`flex items-center gap-3 rounded-xl border px-5 py-4 text-sm font-medium text-white shadow-lg backdrop-blur-md ${bgColor}`}
+            >
+              {/* Icon */}
+              {type === "success" ? (
+                <svg
+                  className="h-6 w-6 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="h-6 w-6 flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              )}
+
+              <span>{message}</span>
+
+              {/* Close button */}
+              <button
+                onClick={onClose}
+                className="ml-auto text-white/70 hover:text-white"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      function App() {
+        const [user, setUser] = useState(null);
+        const [page, setPage] = useState("home");
+        const [requests, setRequests] = useState([]);
+        const [municipalities, setMunicipalities] = useState([]);
+        const [loadingMunicipalities, setLoadingMunicipalities] =
+          useState(true);
+        const [location, setLocation] = useState({ lat: null, lng: null });
+        const [locationError, setLocationError] = useState("");
+
+        // Modal state
+        const [modalImage, setModalImage] = useState(null);
+        const [isSubmitting, setIsSubmitting] = useState(false);
+        const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
+        // Toast state
+        const [toast, setToast] = useState(null); // { message, type: 'success' | 'error' } or null
+
+        const [statusFilter, setStatusFilter] = useState("all");
+        const [issueFilter, setIssueFilter] = useState("all");
+        const [sortOrder, setSortOrder] = useState("newest"); // 'newest' | 'oldest'
+
+        // Modal handlers
+        const openImageModal = (src, alt = "") => {
+          setModalImage({ src, alt });
+        };
+
+        const closeImageModal = () => {
+          setModalImage(null);
+        };
+
+        const showToast = (message, type = "success") => {
+          setToast({ message, type });
+        };
+
+        const hideToast = () => {
+          setToast(null);
+        };
+
+        // Get user location
+        useEffect(() => {
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                setLocation({
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                });
+              },
+              () => setLocationError("Location access denied or unavailable"),
+              { enableHighAccuracy: true, timeout: 8000 },
+            );
+          } else {
+            setLocationError("Geolocation is not supported by this browser");
+          }
+        }, []);
+
+        // Load municipalities
+        useEffect(() => {
+          fetch("/api/municipalities")
+            .then((res) => (res.ok ? res.json() : []))
+            .then((data) => setMunicipalities(data))
+            .catch(() => setMunicipalities([]))
+            .finally(() => setLoadingMunicipalities(false));
+        }, []);
+
+        // Check login + load requests
+        useEffect(() => {
+          fetch("/api/me")
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.user) {
+                setUser(data.user);
+                setPage("dashboard");
+                loadRequests();
+              }
+            })
+            .catch(() => {});
+        }, []);
+
+        const loadRequests = () => {
+          fetch("/api/requests")
+            .then((res) => (res.ok ? res.json() : []))
+            .then(setRequests)
+            .catch(() => setRequests([]));
+        };
+
+        const safeFetch = async (url, options = {}) => {
+          try {
+            const res = await fetch(url, options);
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              //alert(err.error || "Request failed");
+              showToast(err.error || "Request failed", "error");
+              return null;
+            }
+            return await res.json().catch(() => null);
+          } catch (err) {
+            alert("Network error: " + err.message);
+            return null;
+          }
+        };
+
+        const handleLogin = async (e) => {
+          e.preventDefault();
+          const form = e.target;
+          const data = await safeFetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: form.username.value.trim(),
+              password: form.password.value,
+            }),
+          });
+          if (data?.user) {
+            setUser(data.user);
+            setPage("dashboard");
+            loadRequests();
+          }
+        };
+
+        const handleRegister = async (e) => {
+          e.preventDefault();
+          const form = e.target;
+
+          if (form.password.value !== form.confirm.value) {
+            //alert("Passwords don't match");
+            showToast("Passwords don't match", "error");
+            return;
+          }
+
+          const data = await safeFetch("/api/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: form.username.value.trim(),
+              email: form.email.value.trim() || null,
+              password: form.password.value,
+              role: form.role.value,
+              municipalityId: form.municipalityId.value,
+            }),
+          });
+
+          if (data?.success) {
+            alert("Registration successful! Please login.");
+            setPage("home");
+          }
+        };
+
+        const handleReport = async (e) => {
+          e.preventDefault();
+
+          if (!location.lat || !location.lng) {
+            showToast(
+              "Location is required. Please allow location access.",
+              "error",
+            );
+            return;
+          }
+
+          if (isSubmitting) return;
+
+          if (!confirm("Are you sure you want to submit this report?")) {
+            return;
+          }
+
+          setIsSubmitting(true);
+
+          try {
+            const form = e.target;
+            const fd = new FormData(form);
+            fd.append("latitude", location.lat);
+            fd.append("longitude", location.lng);
+
+            const data = await safeFetch("/api/report", {
+              method: "POST",
+              body: fd,
+            });
+
+            if (data) {
+              if (data.success === true) {
+                showToast(
+                  data.message || "Report submitted successfully!",
+                  "success",
+                );
+                loadRequests();
+                form.reset();
+              } else {
+                // Show detailed message from server (low confidence, etc.)
+                showToast(
+                  data.message || "Failed to submit report. Please try again.",
+                  "error",
+                );
+              }
+            }
+          } catch (err) {
+            showToast("Network error while submitting report", "error");
+          } finally {
+            setIsSubmitting(false);
+          }
+        };
+
+        const handleComplete = (id) => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = "image/*";
+          input.onchange = async (e) => {
+            if (!e.target.files?.[0]) return;
+            const fd = new FormData();
+            fd.append("afterPhoto", e.target.files[0]);
+
+            await safeFetch(`/api/complete/${id}`, {
+              method: "POST",
+              body: fd,
+            });
+            loadRequests();
+          };
+          input.click();
+        };
+
+        const handleAction = async (id, action, value) => {
+          const endpoint =
+            action === "review" ? `/api/review/${id}` : `/api/feedback/${id}`;
+
+          let body;
+
+          if (action === "review") {
+            if (value === "rejected") {
+              const reason = prompt("Please enter reason for rejection");
+              if (!reason || !reason.trim()) {
+                alert("Reason is required to reject this issue.");
+                return;
+              }
+              body = { status: "rejected", reason: reason.trim() };
+            } else {
+              body = { status: "accepted", reason: null };
+            }
+          } else {
+            // citizen feedback
+            body = { feedback: value };
+            setIsFeedbackSubmitting(true);
+          }
+
+          try {
+            await safeFetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+
+            await loadRequests();
+          } finally {
+            if (action === "feedback") {
+              setIsFeedbackSubmitting(false);
+            }
+          }
+        };
+
+        const handleLogout = async () => {
+          await safeFetch("/api/logout", { method: "POST" });
+          setUser(null);
+          setPage("home");
+        };
+
+        const muniRequests = useMemo(
+          () =>
+            requests.filter((r) => r.municipalityId === user?.municipalityId),
+          [requests, user],
+        );
+
+        const filteredRequests = useMemo(
+          () =>
+            muniRequests.filter((r) => {
+              const statusOk =
+                statusFilter === "all"
+                  ? true
+                  : (r.status || "pending") === statusFilter;
+              const issueOk =
+                issueFilter === "all"
+                  ? true
+                  : (r.issue_type || r.issuetype) === issueFilter;
+              return statusOk && issueOk;
+            }),
+          [muniRequests, statusFilter, issueFilter],
+        );
+
+        const displayedRequests = useMemo(() => {
+          const copy = [...filteredRequests];
+          // If we want oldest first → reverse the array
+          if (sortOrder === "oldest") {
+            copy.reverse();
+          }
+          return copy;
+        }, [filteredRequests, sortOrder]);
+
+        const analytics = useMemo(() => {
+          const total = muniRequests.length;
+          const completed = muniRequests.filter(
+            (r) => r.status === "completed",
+          ).length;
+          const pending = muniRequests.filter(
+            (r) => !r.status || r.status === "pending",
+          ).length;
+          const accepted = muniRequests.filter(
+            (r) => r.status === "accepted",
+          ).length;
+          const rejected = muniRequests.filter(
+            (r) => r.status === "rejected",
+          ).length;
+
+          const perType = {};
+          issueTypes.forEach((t) => {
+            perType[t.value] = muniRequests.filter(
+              (r) => (r.issue_type || r.issuetype) === t.value,
+            ).length;
+          });
+
+          return { total, completed, pending, accepted, rejected, perType };
+        }, [muniRequests]);
+
+        // ── PAGES ───────────────────────────────────────────────────────────────
+
+        if (page === "home") {
+          // ... (login page remains unchanged)
+          return (
+            <div className="flex flex-col min-h-screen">
+              <div className="flex-1 flex items-center justify-center px-4">
+                <div className="w-full max-w-5xl grid md:grid-cols-2 gap-10 items-center">
+                  <div className="space-y-8">
+                    <div className="inline-flex items-center gap-3 rounded-full bg-white/5 px-4 py-1 border border-white/10 backdrop-blur">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span className="text-xs uppercase tracking-[0.2em] text-slate-300">
+                        CivicTech Platform
+                      </span>
+                    </div>
+                    <div>
+                      <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-white">
+                        Smart Civic{" "}
+                        <span className="text-accent-400">Reporting</span>{" "}
+                        System
+                      </h1>
+                      <p className="mt-4 text-slate-300 leading-relaxed text-sm md:text-base">
+                        A citizen-centric platform to capture urban issues with
+                        geo-tagged evidence, streamline municipal workflows, and
+                        measure resolution satisfaction.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-xs md:text-sm">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-4">
+                        <p className="text-slate-400">Real-time</p>
+                        <p className="mt-1 text-lg font-semibold text-white">
+                          Geo Reports
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-4">
+                        <p className="text-slate-400">Role-based</p>
+                        <p className="mt-1 text-lg font-semibold text-white">
+                          Dashboards
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-4">
+                        <p className="text-slate-400">Feedback</p>
+                        <p className="mt-1 text-lg font-semibold text-white">
+                          Analytics
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute -inset-0.5 bg-gradient-to-tr from-primary-500 via-accent-500 to-emerald-500 opacity-60 blur-2xl"></div>
+                    <div className="relative rounded-3xl border border-white/10 bg-slate-900/70 backdrop-blur-xl shadow-soft p-8">
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-semibold text-white">
+                          Sign in to Dashboard
+                        </h2>
+                        <span className="text-xs text-slate-400">
+                          Municipality & Citizen
+                        </span>
+                      </div>
+
+                      <div className="flex gap-2 mb-8 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setPage("home")}
+                          className="flex-1 py-2 rounded-full bg-slate-800 text-slate-100 border border-white/10"
+                        >
+                          Login
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPage("register")}
+                          className="flex-1 py-2 rounded-full bg-transparent text-slate-300 border border-transparent hover:border-white/20 hover:bg-white/5 transition"
+                        >
+                          Register
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleLogin} className="space-y-5">
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Username
+                          </label>
+                          <input
+                            name="username"
+                            placeholder="Enter your username"
+                            required
+                            autoFocus
+                            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Password
+                          </label>
+                          <input
+                            name="password"
+                            type="password"
+                            placeholder="Enter your password"
+                            required
+                            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="mt-4 w-full rounded-xl bg-gradient-to-r from-primary-500 via-accent-500 to-emerald-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-primary-900/40 hover:brightness-110 transition"
+                        >
+                          Login
+                        </button>
+                      </form>
+
+                      <p className="mt-6 text-[11px] text-slate-400 text-center">
+                        By signing in, you agree to use this platform only for
+                        genuine civic issue reporting and acknowledge that all
+                        submissions are monitored.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Footer />
+            </div>
+          );
+        }
+
+        if (page === "register") {
+          // ... (register page remains unchanged)
+          return (
+            <div className="flex flex-col min-h-screen">
+              <div className="flex-1 flex items-center justify-center px-4">
+                <div className="w-full max-w-3xl">
+                  <div className="mb-6 flex items-center justify-between">
+                    <button
+                      onClick={() => setPage("home")}
+                      className="inline-flex items-center text-xs text-slate-300 hover:text-white transition"
+                    >
+                      <span className="mr-1">←</span> Back to Login
+                    </button>
+                    <span className="text-[11px] text-slate-400 uppercase tracking-[0.2em]">
+                      Create account
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute -inset-0.5 bg-gradient-to-tr from-primary-500 via-accent-500 to-emerald-500 opacity-60 blur-2xl"></div>
+                    <div className="relative rounded-3xl border border-white/10 bg-slate-900/70 backdrop-blur-xl shadow-soft p-8 md:p-10">
+                      <h1 className="text-2xl font-semibold text-white mb-1">
+                        Register to Smart Civic Reporting
+                      </h1>
+                      <p className="text-xs text-slate-300 mb-8">
+                        Choose your role as citizen or municipality official to
+                        access the respective dashboards.
+                      </p>
+
+                      <form
+                        onSubmit={handleRegister}
+                        className="grid gap-6 md:grid-cols-2"
+                      >
+                        <div className="space-y-2 md:col-span-1">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Username
+                          </label>
+                          <input
+                            name="username"
+                            placeholder="johndoe"
+                            required
+                            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-1">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Email{" "}
+                            <span className="text-slate-500">(optional)</span>
+                          </label>
+                          <input
+                            name="email"
+                            type="email"
+                            placeholder="you@example.com"
+                            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Password
+                          </label>
+                          <input
+                            name="password"
+                            type="password"
+                            placeholder="Create a strong password"
+                            required
+                            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Confirm Password
+                          </label>
+                          <input
+                            name="confirm"
+                            type="password"
+                            placeholder="Re-enter password"
+                            required
+                            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Role
+                          </label>
+                          <select
+                            name="role"
+                            defaultValue="user"
+                            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          >
+                            <option value="user">Citizen</option>
+                            <option value="municipality">
+                              Municipality Official
+                            </option>
+                          </select>
+                          <p className="text-xs text-slate-300 mt-1">
+                            Municipality officials will be able to login only
+                            after admin approval.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-xs font-medium text-slate-300">
+                            Municipality
+                          </label>
+                          {loadingMunicipalities ? (
+                            <div className="flex items-center gap-2 text-xs text-slate-400">
+                              <span className="h-2 w-2 rounded-full bg-slate-400 animate-ping"></span>
+                              Loading municipalities...
+                            </div>
+                          ) : (
+                            <select
+                              name="municipalityId"
+                              required
+                              className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                            >
+                              <option value="">Select municipality</option>
+                              {municipalities.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
+                        <div className="md:col-span-2 mt-2">
+                          <button
+                            type="submit"
+                            className="w-full rounded-xl bg-gradient-to-r from-primary-500 via-accent-500 to-emerald-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-primary-900/40 hover:brightness-110 transition"
+                          >
+                            Create Account
+                          </button>
+                        </div>
+                      </form>
+
+                      <p className="mt-6 text-[11px] text-slate-400 text-center">
+                        Already registered?{" "}
+                        <button
+                          onClick={() => setPage("home")}
+                          className="text-accent-400 hover:underline"
+                        >
+                          Go to Login
+                        </button>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Footer />
+            </div>
+          );
+        }
+
+        if (!user) return null;
+
+        return (
+          <div className="flex flex-col min-h-screen">
+            {/* Top nav */}
+            <header className="border-b border-white/10 bg-slate-950/70 backdrop-blur sticky top-0 z-20">
+              <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-primary-500 via-accent-500 to-emerald-500 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                    SR
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      Smart Civic Reporting
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {user.municipalityName}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="hidden sm:flex flex-col items-end">
+                    <span className="text-sm text-white font-medium">
+                      {user.username}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {user.role === "user"
+                        ? "Citizen"
+                        : "Municipality Official"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div className="flex flex-1 mx-auto w-full max-w-7xl px-4 pb-8 pt-6 gap-6">
+              {/* Sidebar */}
+              <aside className="hidden md:flex w-64 flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/70 backdrop-blur-xl p-5 shadow-soft">
+                <div>
+                  <h2 className="text-xs font-semibold text-slate-200 uppercase tracking-[0.18em] mb-3">
+                    Filters
+                  </h2>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-300 mb-2">
+                        Status
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {statusFilters.map((s) => (
+                          <button
+                            key={s.value}
+                            onClick={() => setStatusFilter(s.value)}
+                            className={`px-3 py-1.5 rounded-full text-[11px] border ${
+                              statusFilter === s.value
+                                ? "bg-accent-500 text-white border-accent-400"
+                                : "bg-slate-900/60 text-slate-300 border-white/10 hover:bg-white/5"
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-300 mb-2">
+                        Issue Type
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => setIssueFilter("all")}
+                          className={`px-3 py-1.5 rounded-full text-[11px] border ${
+                            issueFilter === "all"
+                              ? "bg-emerald-500 text-white border-emerald-400"
+                              : "bg-slate-900/60 text-slate-300 border-white/10 hover:bg-white/5"
+                          }`}
+                        >
+                          All
+                        </button>
+                        {issueTypes.map((t) => (
+                          <button
+                            key={t.value}
+                            onClick={() => setIssueFilter(t.value)}
+                            className={`px-3 py-1.5 rounded-full text-[11px] border ${
+                              issueFilter === t.value
+                                ? "bg-slate-100 text-slate-900 border-white"
+                                : "bg-slate-900/60 text-slate-300 border-white/10 hover:bg-white/5"
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-[0.18em] mb-3">
+                    Snapshot
+                  </h3>
+                  <div className="space-y-2 text-[11px] text-slate-300">
+                    <p>
+                      Total reports:{" "}
+                      <span className="font-semibold text-white">
+                        {analytics.total}
+                      </span>
+                    </p>
+                    <p>
+                      Completed:{" "}
+                      <span className="font-semibold text-emerald-300">
+                        {analytics.completed}
+                      </span>
+                    </p>
+                    <p>
+                      Open:{" "}
+                      <span className="font-semibold text-amber-300">
+                        {analytics.pending + analytics.accepted}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </aside>
+
+              {/* Main content */}
+              <main className="flex-1 flex flex-col gap-6">
+                {/* Header & stats */}
+                <section className="space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight flex items-center gap-2">
+                        {user.role === "user"
+                          ? "Citizen Dashboard"
+                          : "Municipality Dashboard"}
+                      </h1>
+                      <p className="text-sm text-slate-300 max-w-xl mt-1">
+                        View and manage civic issue reports, track status
+                        updates, and close the feedback loop.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/70 backdrop-blur p-4">
+                      <p className="text-xs text-slate-400">Total Reports</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">
+                        {analytics.total}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/70 backdrop-blur p-4">
+                      <p className="text-xs text-slate-400">Open</p>
+                      <p className="mt-2 text-2xl font-semibold text-amber-400">
+                        {analytics.pending + analytics.accepted}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/70 backdrop-blur p-4">
+                      <p className="text-xs text-slate-400">Completed</p>
+                      <p className="mt-2 text-2xl font-semibold text-emerald-400">
+                        {analytics.completed}
+                      </p>
+                    </div>
+                  </div>
+
+                  {user.role === "municipality" && (
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/70 backdrop-blur-xl p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="text-sm font-semibold text-white">
+                            Issue Distribution by Type
+                          </h2>
+                          <p className="text-[11px] text-slate-400">
+                            Visual overview of report volume across issue
+                            categories.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {issueTypes.map((t) => {
+                          const count = analytics.perType[t.value] || 0;
+                          const max = Math.max(
+                            1,
+                            ...issueTypes.map(
+                              (it) => analytics.perType[it.value] || 0,
+                            ),
+                          );
+                          const width = `${(count / max) * 100 || 0}%`;
+                          return (
+                            <div key={t.value}>
+                              <div className="flex justify-between text-[11px] text-slate-300 mb-1">
+                                <span>{t.label}</span>
+                                <span>{count} reports</span>
+                              </div>
+                              <div className="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${t.color.replace(
+                                    "bg-",
+                                    "bg-",
+                                  )}`}
+                                  style={{ width }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* Citizen Report Form */}
+                {user.role === "user" && (
+                  <section className="rounded-3xl border border-white/10 bg-slate-900/70 backdrop-blur-xl shadow-soft p-6 md:p-8">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                      <div>
+                        <h2 className="text-lg md:text-xl font-semibold text-white">
+                          Report a Civic Issue
+                        </h2>
+                        <p className="text-xs text-slate-300">
+                          Attach a geo-tagged photo and brief description to
+                          notify {user.municipalityName}.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            location.lat && location.lng
+                              ? "bg-emerald-400"
+                              : "bg-amber-400"
+                          } animate-pulse`}
+                        ></span>
+                        <span className="text-slate-300">
+                          {location.lat && location.lng
+                            ? "Location captured"
+                            : "Waiting for location permission"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {locationError && (
+                      <div className="mb-5 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+                        {locationError}
+                      </div>
+                    )}
+
+                    <form
+                      onSubmit={handleReport}
+                      className="grid gap-5 md:grid-cols-2"
+                    >
+                      <div className="space-y-2">
+                        <label className="block text-xs font-medium text-slate-300">
+                          Issue type
+                        </label>
+                        <select
+                          name="issue_type"
+                          defaultValue="garbage"
+                          required
+                          className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                        >
+                          {issueTypes.map((t) => (
+                            <option key={t.value} value={t.value}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-xs font-medium text-slate-300">
+                          Before photo
+                        </label>
+                        <input
+                          type="file"
+                          name="photo"
+                          accept="image/*"
+                          required
+                          className="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-accent-500/10 file:px-3 file:py-2 file:text-accent-100 hover:file:bg-accent-500/20 cursor-pointer rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="block text-xs font-medium text-slate-300">
+                          Description
+                        </label>
+                        <textarea
+                          name="description"
+                          rows="4"
+                          required
+                          className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          placeholder="Provide a short description, landmarks nearby, and any urgency details..."
+                        ></textarea>
+                      </div>
+
+                      <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs text-slate-300">
+                          Report will be routed to{" "}
+                          <span className="font-medium text-accent-300">
+                            {user.municipalityName}
+                          </span>
+                          .
+                        </p>
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-white shadow-lg shadow-emerald-900/40 transition-all
+    ${
+      isSubmitting
+        ? "bg-gray-600 cursor-not-allowed opacity-70"
+        : "bg-gradient-to-r from-emerald-500 via-accent-500 to-primary-500 hover:brightness-110"
+    }`}
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <svg
+                                className="animate-spin h-4 w-4 text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              Submitting...
+                            </>
+                          ) : (
+                            "Submit Report"
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </section>
+                )}
+
+                {/* Reports List */}
+                <section className="space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <h2 className="text-lg md:text-xl font-semibold text-white">
+                      {user.role === "user"
+                        ? "My Submitted Reports"
+                        : `Reports in ${user.municipalityName}`}
+                    </h2>
+                    <div className="flex items-center gap-4">
+                      <span className="text-[11px] text-slate-400">
+                        {filteredRequests.length} result(s)
+                      </span>
+
+                      <button
+                        onClick={() =>
+                          setSortOrder((prev) =>
+                            prev === "newest" ? "oldest" : "newest",
+                          )
+                        }
+                        className="text-xs text-accent-400 hover:underline font-medium"
+                      >
+                        Sort by{" "}
+                        {sortOrder === "newest"
+                          ? "Oldest first"
+                          : "Newest first"}
+                      </button>
+                    </div>
+                  </div>
+                  {displayedRequests.length === 0 ? (
+                    <div className="mt-4 rounded-3xl border border-dashed border-slate-600/60 bg-slate-900/60 px-6 py-10 text-center">
+                      <p className="text-sm text-slate-300">
+                        No reports match the selected filters.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                      {displayedRequests.map((r) => {
+                        const issue = getIssueConfig(
+                          r.issue_type || r.issuetype,
+                        );
+                        return (
+                          <article
+                            key={r.id}
+                            className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 backdrop-blur-xl shadow-soft flex flex-col"
+                          >
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-slate-900/80">
+                              <span
+                                className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium text-white ${issue.color}`}
+                              >
+                                {issue.label}
+                              </span>
+                              <span className="text-[11px] text-slate-300">
+                                #{r.id}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
+                              <div>
+                                <p className="text-[11px] font-medium text-slate-300 mb-1">
+                                  Before
+                                </p>
+                                <img
+                                  src={r.imagePath}
+                                  alt={`Before - ${issue.label}`}
+                                  loading="lazy"
+                                  className="h-40 w-full rounded-2xl object-cover border border-white/10 cursor-zoom-in transition hover:opacity-90 hover:shadow-xl hover:scale-[1.02]"
+                                  onClick={() =>
+                                    openImageModal(
+                                      r.imagePath,
+                                      `Before photo - ${issue.label}`,
+                                    )
+                                  }
+                                />
+                              </div>
+
+                              {r.afterImagePath && (
+                                <div>
+                                  <p className="text-[11px] font-medium text-slate-300 mb-1">
+                                    After
+                                  </p>
+                                  <img
+                                    src={r.afterImagePath}
+                                    alt={`After - ${issue.label}`}
+                                    loading="lazy"
+                                    className="h-40 w-full rounded-2xl object-cover border border-emerald-500/40 cursor-zoom-in transition hover:opacity-90 hover:shadow-xl hover:scale-[1.02]"
+                                    onClick={() =>
+                                      openImageModal(
+                                        r.afterImagePath,
+                                        `After photo (resolved) - ${issue.label}`,
+                                      )
+                                    }
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex-1 px-5 pb-5">
+                              <p className="text-xs text-slate-200 mb-3 line-clamp-3">
+                                <span className="font-semibold text-slate-100 mr-1">
+                                  Description:
+                                </span>
+                                {r.description || "No description provided"}
+                              </p>
+
+                              {r.latitude && r.longitude && (
+                                <p className="mb-3 text-[11px] text-slate-300">
+                                  <span className="font-medium text-slate-100">
+                                    Location:
+                                  </span>{" "}
+                                  <a
+                                    href={`https://maps.google.com/?q=${r.latitude},${r.longitude}`}
+                                    target="_blank"
+                                    className="text-accent-300 hover:underline"
+                                  >
+                                    View on Maps
+                                  </a>
+                                </p>
+                              )}
+
+                              <p className="text-[11px] text-slate-400 mt-2 mb-3">
+                                Reported:{" "}
+                                {new Date(r.createdAt).toLocaleString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+
+                              {/* AI Confidence Display */}
+                              {r.modelResult !== null &&
+                                r.modelResult !== undefined && (
+                                  <div className="mt-2 mb-4 text-[11px] flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-slate-200">
+                                      AI Confidence:
+                                    </span>
+                                    <span
+                                      className={`font-semibold px-2.5 py-0.5 rounded-full text-xs ${
+                                        Number(r.modelResult) >= 80
+                                          ? "bg-emerald-600/90 text-white"
+                                          : Number(r.modelResult) >= 60
+                                            ? "bg-amber-600/80 text-white"
+                                            : "bg-rose-600/80 text-white"
+                                      }`}
+                                    >
+                                      {Number(r.modelResult).toFixed(1)}%
+                                    </span>
+                                    {Number(r.modelResult) < 60 && (
+                                      <span className="text-[10px] text-rose-400 italic">
+                                        (low confidence)
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                              {/* Reopen Reason (shows when issue was reopened due to unsatisfied feedback) */}
+                              {r.last_reopen_reason &&
+                                r.status === "pending" && (
+                                  <p className="mt-2 text-[11px] text-amber-400 bg-amber-900/20 border border-amber-500/30 rounded-lg px-3 py-1">
+                                    Reopened: {r.last_reopen_reason}
+                                  </p>
+                                )}
+
+                              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                                <div className="flex flex-col gap-1 text-[11px]">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-slate-100">
+                                      Status:
+                                    </span>
+                                    <span
+                                      className={`px-3 py-1 rounded-full text-[11px] font-semibold text-white ${
+                                        r.status === "accepted"
+                                          ? "bg-sky-500/90"
+                                          : r.status === "rejected"
+                                            ? "bg-rose-500/90"
+                                            : r.status === "completed"
+                                              ? "bg-violet-500/90"
+                                              : "bg-amber-400/90"
+                                      }`}
+                                    >
+                                      {(r.status || "pending").toUpperCase()}
+                                    </span>
+                                  </div>
+
+                                  {r.status === "rejected" &&
+                                    r.rejectReason && (
+                                      <p className="mt-1 text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2 py-1">
+                                        Reason: {r.rejectReason}
+                                      </p>
+                                    )}
+                                </div>
+
+                                {r.feedback && (
+                                  <div className="flex items-center gap-2 text-[11px]">
+                                    <span className="font-medium text-slate-100">
+                                      Feedback:
+                                    </span>
+                                    <span
+                                      className={`px-3 py-1 rounded-full text-[11px] font-semibold text-white ${
+                                        r.feedback === "satisfied"
+                                          ? "bg-emerald-500/90"
+                                          : "bg-orange-500/90"
+                                      }`}
+                                    >
+                                      {r.feedback === "satisfied"
+                                        ? "Satisfied"
+                                        : "Unsatisfied"}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Municipality Actions */}
+                              {user.role === "municipality" &&
+                                r.status === "pending" && (
+                                  <div className="mt-2 flex gap-2 text-xs">
+                                    <button
+                                      onClick={() =>
+                                        handleAction(r.id, "review", "accepted")
+                                      }
+                                      className="flex-1 rounded-xl bg-sky-500/90 px-3 py-2 font-medium text-white hover:bg-sky-400 transition"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleAction(r.id, "review", "rejected")
+                                      }
+                                      className="flex-1 rounded-xl bg-rose-500/90 px-3 py-2 font-medium text-white hover:bg-rose-400 transition"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+
+                              {user.role === "municipality" &&
+                                r.status === "accepted" && (
+                                  <button
+                                    onClick={() => handleComplete(r.id)}
+                                    className="mt-3 w-full rounded-xl bg-violet-500/90 px-4 py-2.5 text-xs font-medium text-white hover:bg-violet-400 transition"
+                                  >
+                                    Mark Completed & Upload After Photo
+                                  </button>
+                                )}
+
+                              {/* Citizen Feedback */}
+                              {/* Citizen Feedback - Shown every time issue is completed & feedback not yet given */}
+                              {user.role === "user" &&
+                                r.status === "completed" &&
+                                !r.feedback && (
+                                  <div className="mt-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+                                    <p className="text-xs text-slate-300 mb-2 text-center">
+                                      How satisfied are you with the resolution?
+                                    </p>
+                                    <div className="flex gap-2 text-xs">
+                                      <button
+                                        onClick={() =>
+                                          handleAction(
+                                            r.id,
+                                            "feedback",
+                                            "satisfied",
+                                          )
+                                        }
+                                        disabled={isFeedbackSubmitting}
+                                        className={
+                                          "flex-1 rounded-xl px-3 py-2 text-xs font-medium text-white transition " +
+                                          (isFeedbackSubmitting
+                                            ? "bg-gray-600 cursor-not-allowed opacity-70"
+                                            : "bg-emerald-60080 hover:bg-emerald-500")
+                                        }
+                                      >
+                                        {isFeedbackSubmitting
+                                          ? "Submitting..."
+                                          : "Satisfied"}
+                                      </button>
+
+                                      <button
+                                        onClick={() =>
+                                          handleAction(
+                                            r.id,
+                                            "feedback",
+                                            "unsatisfied",
+                                          )
+                                        }
+                                        disabled={isFeedbackSubmitting}
+                                        className={
+                                          "flex-1 rounded-xl px-3 py-2 text-xs font-medium text-white transition " +
+                                          (isFeedbackSubmitting
+                                            ? "bg-gray-600 cursor-not-allowed opacity-70"
+                                            : "bg-orange-60080 hover:bg-orange-500")
+                                        }
+                                      >
+                                        {isFeedbackSubmitting
+                                          ? "Submitting..."
+                                          : "Unsatisfied"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </main>
+              {toast && (
+                <Toast
+                  message={toast.message}
+                  type={toast.type}
+                  onClose={hideToast}
+                />
+              )}
+            </div>
+
+            {/* Image Modal */}
+            {modalImage && (
+              <ImageModal
+                src={modalImage.src}
+                alt={modalImage.alt}
+                onClose={closeImageModal}
+              />
+            )}
+
+            <Footer />
+          </div>
+        );
+      }
+
+      const root = createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

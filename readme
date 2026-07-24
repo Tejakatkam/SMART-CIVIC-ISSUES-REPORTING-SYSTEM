@@ -1,0 +1,6 @@
+ cd tejamp\user
+  cd tejamp\admin
+
+
+  code\scripts\activate
+  node server.js

@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin | Smart Civic Reporting</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["system-ui", "Inter", "ui-sans-serif", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+      const { createRoot } = ReactDOM;
+
+      const STATUS_COLORS = {
+        pending: "bg-amber-500",
+        accepted: "bg-sky-500",
+        completed: "bg-emerald-500",
+        rejected: "bg-rose-500",
+      };
+
+      function AdminApp() {
+        const [admin, setAdmin] = useState(null);
+        const [page, setPage] = useState("login"); // login | dashboard | analytics | settings
+        const [apps, setApps] = useState([]);
+        const [requests, setRequests] = useState([]);
+        const [officials, setOfficials] = useState([]);
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState("");
+
+        // filters for issues
+        const [filters, setFilters] = useState({
+          status: "all",
+          type: "all",
+          municipality: "all",
+          search: "",
+        });
+
+        // filters for officials
+        const [officialFilters, setOfficialFilters] = useState({
+          status: "all",
+          municipality: "all",
+          sortBy: "name",
+        });
+
+        // analytics: selected municipality for per-muni chart
+        const [
+          selectedAnalyticsMunicipality,
+          setSelectedAnalyticsMunicipality,
+        ] = useState("all");
+
+        // issue detail drawer
+        const [selectedIssue, setSelectedIssue] = useState(null);
+        const [issueTimeline, setIssueTimeline] = useState([]);
+
+        // chart refs
+        const pendingCompletedCanvasRef = useRef(null);
+        const muniPendingCanvasRef = useRef(null);
+        const muniStatusCanvasRef = useRef(null);
+        const pendingCompletedChartRef = useRef(null);
+        const muniPendingChartRef = useRef(null);
+        const muniStatusChartRef = useRef(null);
+
+        useEffect(() => {
+          fetch("/api/admin/me")
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.admin) {
+                setAdmin(data.admin);
+                setPage("dashboard");
+                loadAll();
+              }
+            });
+        }, []);
+
+        const safeFetch = async (url, options = {}) => {
+          try {
+            const res = await fetch(url, options);
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+              setError(data?.error || "Request failed");
+              return null;
+            }
+            setError("");
+            return data;
+          } catch (e) {
+            setError(e.message);
+            return null;
+          }
+        };
+
+        const handleLogin = async (e) => {
+          e.preventDefault();
+          const form = e.target;
+          const body = {
+            username: form.username.value.trim(),
+            password: form.password.value,
+          };
+          const data = await safeFetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (data?.admin) {
+            setAdmin(data.admin);
+            setPage("dashboard");
+            loadAll();
+          }
+        };
+
+        const handleLogout = async () => {
+          await safeFetch("/api/admin/logout", { method: "POST" });
+          setAdmin(null);
+          setPage("login");
+          setApps([]);
+          setRequests([]);
+          setOfficials([]);
+          setSelectedIssue(null);
+          setIssueTimeline([]);
+        };
+
+        const loadAll = async () => {
+          setLoading(true);
+          const [appsData, reqsData, officialsData] = await Promise.all([
+            safeFetch("/api/admin/official-applications"),
+            safeFetch("/api/admin/requests"),
+            safeFetch("/api/admin/officials"),
+          ]);
+          if (appsData) setApps(appsData);
+          if (reqsData) setRequests(reqsData);
+          if (officialsData) setOfficials(officialsData);
+          setLoading(false);
+        };
+
+        const updateApplicationStatus = async (id, action) => {
+          const endpoint =
+            action === "approve"
+              ? `/api/admin/official-applications/${id}/approve`
+              : `/api/admin/official-applications/${id}/reject`;
+
+          const data = await safeFetch(endpoint, { method: "POST" });
+          if (data?.success) {
+            loadAll();
+          }
+        };
+
+        const updateOfficialStatus = async (id, action) => {
+          let url = "";
+          let method = "POST";
+
+          if (action === "block") {
+            url = `/api/admin/officials/${id}/block`;
+          } else if (action === "unblock") {
+            url = `/api/admin/officials/${id}/unblock`;
+          } else if (action === "delete") {
+            if (
+              !window.confirm("Are you sure you want to remove this official?")
+            ) {
+              return;
+            }
+            url = `/api/admin/officials/${id}`;
+            method = "DELETE";
+          } else {
+            return;
+          }
+
+          const data = await safeFetch(url, { method });
+          if (data?.success) {
+            loadAll();
+          }
+        };
+
+        const openIssue = async (issue) => {
+          setSelectedIssue(issue);
+          setIssueTimeline([]);
+
+          const data = await safeFetch(`/api/admin/issues/${issue.id}`);
+          if (data && data.issue) {
+            setSelectedIssue((prev) => ({ ...prev, ...data.issue }));
+            setIssueTimeline(data.timeline || []);
+          }
+        };
+
+        const closeIssueDrawer = () => {
+          setSelectedIssue(null);
+          setIssueTimeline([]);
+        };
+
+        // derived analytics
+        const totalIssues = requests.length;
+
+        const resolvedIssues = requests.filter((r) => {
+          const s = (r.status || "").toLowerCase();
+          return s === "completed" || s === "rejected";
+        }).length;
+
+        const completedPercent = totalIssues
+          ? Math.round((resolvedIssues / totalIssues) * 100)
+          : 0;
+
+        const totalPending = requests.filter((r) => {
+          const s = (r.status || "").toLowerCase();
+          return s === "pending" || s === "accepted";
+        }).length;
+
+        // unique municipality names for officials filter
+        const municipalityOptions = Array.from(
+          new Set(officials.map((o) => o.municipalityName).filter(Boolean))
+        );
+
+        // unique municipality names for issues filter
+        const issueMunicipalityOptions = Array.from(
+          new Set(requests.map((r) => r.municipalityName).filter(Boolean))
+        );
+
+        // derived filtered lists – issues
+        const filteredRequests = requests.filter((r) => {
+          const statusValue = (r.status || "pending").toLowerCase();
+
+          const matchesStatus =
+            filters.status === "all" || statusValue === filters.status;
+
+          const matchesType =
+            filters.type === "all" || r.issue_type === filters.type;
+
+          const matchesMunicipality =
+            filters.municipality === "all" ||
+            (r.municipalityName || "") === filters.municipality;
+
+          const text = `${r.description || ""} ${
+            r.citizenName || ""
+          }`.toLowerCase();
+          const matchesSearch =
+            !filters.search || text.includes(filters.search.toLowerCase());
+
+          return (
+            matchesStatus && matchesType && matchesMunicipality && matchesSearch
+          );
+        });
+
+        // derived filtered lists – officials
+        const filteredOfficials = officials
+          .filter((o) => {
+            const status = o.accountStatus || "active";
+            const matchesStatus =
+              officialFilters.status === "all" ||
+              status === officialFilters.status;
+
+            const matchesMunicipality =
+              officialFilters.municipality === "all" ||
+              (o.municipalityName || "") === officialFilters.municipality;
+
+            return matchesStatus && matchesMunicipality;
+          })
+          .sort((a, b) => {
+            if (officialFilters.sortBy === "issues") {
+              return (b.totalIssuesHandled || 0) - (a.totalIssuesHandled || 0);
+            }
+            if (officialFilters.sortBy === "avgTime") {
+              return (
+                (a.avgResolutionMinutes || Infinity) -
+                (b.avgResolutionMinutes || Infinity)
+              );
+            }
+            return (a.username || "").localeCompare(b.username || "");
+          });
+
+        // ---------- ANALYTICS CHARTS EFFECT ----------
+        useEffect(() => {
+          if (page !== "analytics") return;
+
+          // destroy old charts
+          if (pendingCompletedChartRef.current)
+            pendingCompletedChartRef.current.destroy();
+          if (muniPendingChartRef.current)
+            muniPendingChartRef.current.destroy();
+          if (muniStatusChartRef.current) muniStatusChartRef.current.destroy();
+
+          // 1) Overall: Pending (pending+accepted), Completed, Rejected
+          const pendingLikeCount = requests.filter((r) => {
+            const s = (r.status || "").toLowerCase();
+            return s === "pending" || s === "accepted";
+          }).length;
+
+          const completedCount = requests.filter(
+            (r) => (r.status || "").toLowerCase() === "completed"
+          ).length;
+
+          const rejectedCount = requests.filter(
+            (r) => (r.status || "").toLowerCase() === "rejected"
+          ).length;
+
+          if (pendingCompletedCanvasRef.current) {
+            const ctx1 = pendingCompletedCanvasRef.current.getContext("2d");
+            pendingCompletedChartRef.current = new Chart(ctx1, {
+              type: "bar",
+              data: {
+                labels: ["Pending (incl. Accepted)", "Completed", "Rejected"],
+                datasets: [
+                  {
+                    label: "Issues",
+                    data: [pendingLikeCount, completedCount, rejectedCount],
+                    backgroundColor: ["#f59e0b", "#10b981", "#f43f5e"],
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: { display: false },
+                  title: { display: true, text: "Overall Status Distribution" },
+                },
+                scales: {
+                  y: { beginAtZero: true, ticks: { precision: 0 } },
+                },
+              },
+            });
+          }
+
+          // 2) Municipality-wise Pending (pending+accepted) + Rejected
+          const muniMap = {};
+          requests.forEach((r) => {
+            const statusValue = (r.status || "").toLowerCase();
+            const name = r.municipalityName || "Unknown";
+
+            if (!muniMap[name]) {
+              muniMap[name] = { pendingLike: 0, rejected: 0 };
+            }
+
+            if (statusValue === "pending" || statusValue === "accepted") {
+              muniMap[name].pendingLike += 1;
+            } else if (statusValue === "rejected") {
+              muniMap[name].rejected += 1;
+            }
+          });
+
+          const muniLabels = Object.keys(muniMap);
+          const muniPendingValues = muniLabels.map(
+            (name) => muniMap[name].pendingLike
+          );
+          const muniRejectedValues = muniLabels.map(
+            (name) => muniMap[name].rejected
+          );
+
+          if (muniPendingCanvasRef.current) {
+            const ctx2 = muniPendingCanvasRef.current.getContext("2d");
+            muniPendingChartRef.current = new Chart(ctx2, {
+              type: "bar",
+              data: {
+                labels: muniLabels,
+                datasets: [
+                  {
+                    label: "Pending (incl. Accepted)",
+                    data: muniPendingValues,
+                    backgroundColor: "#f59e0b",
+                  },
+                  {
+                    label: "Rejected",
+                    data: muniRejectedValues,
+                    backgroundColor: "#f43f5e",
+                  },
+                ],
+              },
+              options: {
+                indexAxis: "y",
+                responsive: true,
+                plugins: {
+                  legend: { display: true },
+                  title: {
+                    display: true,
+                    text: "Municipality-wise Pending & Rejected",
+                  },
+                },
+                scales: {
+                  x: { beginAtZero: true, ticks: { precision: 0 } },
+                },
+              },
+            });
+          }
+
+          // 3) Selected municipality: Pending (pending+accepted), Completed, Rejected
+          let muniFilterName = selectedAnalyticsMunicipality;
+          let muniRequests = requests;
+
+          if (muniFilterName !== "all") {
+            muniRequests = requests.filter(
+              (r) => (r.municipalityName || "") === muniFilterName
+            );
+          }
+
+          const muniPendingLikeCount = muniRequests.filter((r) => {
+            const s = (r.status || "").toLowerCase();
+            return s === "pending" || s === "accepted";
+          }).length;
+
+          const muniCompletedCount = muniRequests.filter(
+            (r) => (r.status || "").toLowerCase() === "completed"
+          ).length;
+
+          const muniRejectedCount = muniRequests.filter(
+            (r) => (r.status || "").toLowerCase() === "rejected"
+          ).length;
+
+          if (muniStatusCanvasRef.current) {
+            const ctx3 = muniStatusCanvasRef.current.getContext("2d");
+            muniStatusChartRef.current = new Chart(ctx3, {
+              type: "bar",
+              data: {
+                labels: ["Pending (incl. Accepted)", "Completed", "Rejected"],
+                datasets: [
+                  {
+                    label: "Issues",
+                    data: [
+                      muniPendingLikeCount,
+                      muniCompletedCount,
+                      muniRejectedCount,
+                    ],
+                    backgroundColor: ["#f59e0b", "#10b981", "#f43f5e"],
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: { display: false },
+                  title: {
+                    display: true,
+                    text:
+                      muniFilterName === "all"
+                        ? "All Municipalities: Pending vs Completed vs Rejected"
+                        : `${muniFilterName}: Pending vs Completed vs Rejected`,
+                  },
+                },
+                scales: {
+                  y: { beginAtZero: true, ticks: { precision: 0 } },
+                },
+              },
+            });
+          }
+        }, [page, requests, selectedAnalyticsMunicipality]);
+
+        // LOGIN PAGE
+        if (page === "login") {
+          return (
+            <div className="min-h-screen flex items-center justify-center px-4">
+              <div className="max-w-md w-full bg-slate-900/80 border border-white/10 rounded-2xl p-8 space-y-6 text-sm">
+                <h1 className="text-xl font-semibold text-white text-center">
+                  Admin Login
+                </h1>
+                {error && (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-xs mb-1 text-slate-300">
+                      Username
+                    </label>
+                    <input
+                      name="username"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-sm"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1 text-slate-300">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      name="password"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-white/10 text-sm"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-sm font-medium"
+                  >
+                    Login as Admin
+                  </button>
+                </form>
+                <p className="text-[11px] text-slate-400 text-center">
+                  This panel is restricted to system administrators only.
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        // DASHBOARD SHELL
+        return (
+          <div className="min-h-screen flex flex-col font-sans text-sm">
+            {/* Header */}
+            <header className="border-b border-white/10 bg-slate-950/80">
+              <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-lg font-semibold text-white">
+                    Admin Dashboard
+                  </h1>
+                  <p className="text-[11px] text-slate-400">
+                    Smart Civic Reporting System
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex items-center gap-2 text-xs">
+                    <button
+                      onClick={() => setPage("dashboard")}
+                      className={`px-3 py-1 rounded-full ${
+                        page === "dashboard"
+                          ? "bg-emerald-500 text-slate-950"
+                          : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                      }`}
+                    >
+                      Overview
+                    </button>
+                    <button
+                      onClick={() => setPage("analytics")}
+                      className={`px-3 py-1 rounded-full ${
+                        page === "analytics"
+                          ? "bg-emerald-500 text-slate-950"
+                          : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                      }`}
+                    >
+                      Analytics
+                    </button>
+                    <button
+                      onClick={() => setPage("settings")}
+                      className={`px-3 py-1 rounded-full ${
+                        page === "settings"
+                          ? "bg-emerald-500 text-slate-950"
+                          : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                      }`}
+                    >
+                      Settings
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-300">
+                      {admin?.username} (admin)
+                    </span>
+                    <button
+                      onClick={handleLogout}
+                      className="text-xs px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            {/* MAIN CONTENT SWITCH */}
+            {page === "analytics" ? (
+              <main className="flex-1 max-w-6xl mx-auto px-4 py-6 space-y-6">
+                {error && (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
+
+                {/* Stats cards */}
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-3">
+                    <p className="text-[11px] text-slate-400">Total issues</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {totalIssues}
+                    </p>
+                    <div className="mt-2 h-1.5 rounded-full bg-slate-800">
+                      <div
+                        className="h-1.5 rounded-full bg-emerald-500"
+                        style={{ width: `${Math.min(totalIssues, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-3">
+                    <p className="text-[11px] text-slate-400">Completed %</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {completedPercent}%
+                    </p>
+                    <div className="mt-2 h-1.5 rounded-full bg-emerald-500">
+                      <div
+                        className="h-1.5 rounded-full bg-emerald-500"
+                        style={{ width: `${completedPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-3">
+                    <p className="text-[11px] text-slate-400">
+                      Total pending (incl. accepted)
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {totalPending}
+                    </p>
+                  </div>
+                </section>
+
+                {/* Charts row: overall + muni pending */}
+                <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
+                    <h2 className="text-sm font-semibold text-white mb-2">
+                      Overall Status
+                    </h2>
+                    <canvas ref={pendingCompletedCanvasRef} />
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
+                    <h2 className="text-sm font-semibold text-white mb-2">
+                      Municipality-wise Pending & Rejected
+                    </h2>
+                    <canvas ref={muniPendingCanvasRef} />
+                  </div>
+                </section>
+
+                {/* Municipality-wise pending vs completed vs rejected */}
+                <section className="bg-slate-900/80 border border-white/10 rounded-2xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold text-white">
+                      Municipality-wise Status (Pending / Completed / Rejected)
+                    </h2>
+                    <div className="text-[11px] flex items-center gap-2">
+                      <label className="text-slate-400">Municipality</label>
+                      <select
+                        className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1"
+                        value={selectedAnalyticsMunicipality}
+                        onChange={(e) =>
+                          setSelectedAnalyticsMunicipality(e.target.value)
+                        }
+                      >
+                        <option value="all">All municipalities</option>
+                        {issueMunicipalityOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <canvas ref={muniStatusCanvasRef} />
+                </section>
+              </main>
+            ) : page === "settings" ? (
+              <main className="flex-1 max-w-6xl mx.auto px-4 py-6 space-y-6">
+                {error && (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
+
+                <section className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
+                  <h2 className="text-sm font-semibold text-white mb-2">
+                    Settings (coming soon)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Here you will manage municipalities, issue types, priorities
+                    and global SLA configs once backend endpoints are ready.
+                  </p>
+                </section>
+              </main>
+            ) : (
+              <main className="flex-1 max-w-6xl mx-auto px-4 py-6 space-y-6">
+                {error && (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
+
+                {/* Overview stats */}
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-3">
+                    <p className="text-[11px] text-slate-400">Total issues</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {totalIssues}
+                    </p>
+                    <div className="mt-2 h-1.5 rounded-full bg-slate-800">
+                      <div
+                        className="h-1.5 rounded-full bg-emerald-500"
+                        style={{ width: `${Math.min(totalIssues, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-3">
+                    <p className="text-[11px] text-slate-400">Completed %</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {completedPercent}%
+                    </p>
+                    <div className="mt-2 h-1.5 rounded-full bg-emerald-500">
+                      <div
+                        className="h-1.5 rounded-full bg-emerald-500"
+                        style={{ width: `${completedPercent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-3">
+                    <p className="text-[11px] text-slate-400">
+                      Total pending (incl. accepted)
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {totalPending}
+                    </p>
+                  </div>
+                </section>
+
+                {/* Municipality official applications */}
+                <section className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-semibold text-white">
+                      Municipality Official Applications
+                    </h2>
+                    <button
+                      onClick={loadAll}
+                      className="text-[11px] px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  {loading && (
+                    <p className="text-xs text-slate-400 mb-2">Loading...</p>
+                  )}
+
+                  {apps.length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      No applications found.
+                    </p>
+                  ) : (
+                    <div className="space-y-3 max-h-72 overflow-auto pr-1 text-xs">
+                      {apps.map((a) => (
+                        <div
+                          key={a.id}
+                          className="border border-white/10 rounded-xl px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-white">
+                                {a.username}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] text-white ${
+                                  STATUS_COLORS[a.status] || "bg-slate-500"
+                                }`}
+                              >
+                                {a.status.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-slate-300">
+                              Municipality:{" "}
+                              <span className="font-medium">
+                                {a.municipalityName || a.municipality_id}
+                              </span>
+                            </p>
+                            {a.email && (
+                              <p className="text-slate-400">Email: {a.email}</p>
+                            )}
+                          </div>
+                          {a.status === "pending" && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() =>
+                                  updateApplicationStatus(a.id, "approve")
+                                }
+                                className="px-3 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-[11px]"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() =>
+                                  updateApplicationStatus(a.id, "reject")
+                                }
+                                className="px-3 py-1 rounded-full bg-rose-500 hover:bg-rose-400 text-[11px]"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                {/* Municipality officials management */}
+                <section className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-semibold text-white">
+                      Municipality Officials
+                    </h2>
+                    <span className="text-[11px] text-slate-400">
+                      Total: {officials.length}
+                    </span>
+                  </div>
+
+                  {/* Officials filters */}
+                  <div className="flex flex-col md:flex-row md:items-end gap-2 mb-3 text-[11px]">
+                    <div className="flex gap-2 flex-wrap">
+                      <div>
+                        <label className="block text-slate-400 mb-1">
+                          Status
+                        </label>
+                        <select
+                          className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1"
+                          value={officialFilters.status}
+                          onChange={(e) =>
+                            setOfficialFilters((f) => ({
+                              ...f,
+                              status: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="all">All</option>
+                          <option value="active">Active</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 mb-1">
+                          Sort by
+                        </label>
+                        <select
+                          className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1"
+                          value={officialFilters.sortBy}
+                          onChange={(e) =>
+                            setOfficialFilters((f) => ({
+                              ...f,
+                              sortBy: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="name">Name</option>
+                          <option value="issues">Issues handled</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 mb-1">
+                          Municipality
+                        </label>
+                        <select
+                          className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1"
+                          value={officialFilters.municipality}
+                          onChange={(e) =>
+                            setOfficialFilters((f) => ({
+                              ...f,
+                              municipality: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="all">All</option>
+                          {municipalityOptions.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {officials.length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      No municipality officials found.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-auto pr-1 text-xs">
+                      {filteredOfficials.map((o) => (
+                        <div
+                          key={o.id}
+                          className="border border-white/10 rounded-xl px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:border-emerald-500/40 hover:bg-slate-900"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-white">
+                                {o.username}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-100">
+                                {(o.accountStatus || "active").toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-slate-300">
+                              Municipality:{" "}
+                              <span className="font-medium">
+                                {o.municipalityName || "N/A"}
+                              </span>
+                            </p>
+                            {o.email && (
+                              <p className="text-slate-400">Email: {o.email}</p>
+                            )}
+                            <p className="text-slate-400">
+                              Issues handled: {o.totalIssuesHandled ?? 0}
+                            </p>
+
+                            {o.lastLogin && (
+                              <p className="text-slate-500">
+                                Last login:{" "}
+                                {new Date(o.lastLogin).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            {o.accountStatus === "blocked" ? (
+                              <button
+                                onClick={() =>
+                                  updateOfficialStatus(o.id, "unblock")
+                                }
+                                className="px-3 py-1 rounded-full bg-emerald-500 hover:bg-emerald-400 text-[11px]"
+                              >
+                                Unblock
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() =>
+                                  updateOfficialStatus(o.id, "block")
+                                }
+                                className="px-3 py-1 rounded-full bg-amber-500 hover:bg-amber-400 text-[11px]"
+                              >
+                                Block
+                              </button>
+                            )}
+                            <button
+                              onClick={() =>
+                                updateOfficialStatus(o.id, "delete")
+                              }
+                              className="px-3 py-1 rounded-full bg-rose-500 hover:bg-rose-400 text-[11px]"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                {/* All issues overview */}
+                <section className="bg-slate-900/80 border border-white/10 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-semibold text-white">
+                      All Municipality Issues
+                    </h2>
+                    <span className="text-[11px] text-slate-400">
+                      Total: {requests.length}
+                    </span>
+                  </div>
+
+                  {/* Filters + search */}
+                  <div className="flex flex-col md:flex-row md:items-end gap-2 mb-3 text-[11px]">
+                    <div className="flex gap-2 flex-wrap">
+                      <div>
+                        <label className="block text-slate-400 mb-1">
+                          Status
+                        </label>
+                        <select
+                          className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1"
+                          value={filters.status}
+                          onChange={(e) =>
+                            setFilters((f) => ({
+                              ...f,
+                              status: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="all">All</option>
+                          <option value="pending">Pending</option>
+                          <option value="accepted">Accepted</option>
+                          <option value="completed">Completed</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 mb-1">
+                          Issue type
+                        </label>
+                        <select
+                          className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1"
+                          value={filters.type}
+                          onChange={(e) =>
+                            setFilters((f) => ({ ...f, type: e.target.value }))
+                          }
+                        >
+                          <option value="all">All</option>
+                          <option value="garbage">Garbage</option>
+                          <option value="streetlights">Streetlights</option>
+                          <option value="waterleak">Water leak</option>
+                          <option value="sewage">Sewage</option>
+                          <option value="pothole">Pothole</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 mb-1">
+                          Municipality
+                        </label>
+                        <select
+                          className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1"
+                          value={filters.municipality}
+                          onChange={(e) =>
+                            setFilters((f) => ({
+                              ...f,
+                              municipality: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="all">All</option>
+                          {issueMunicipalityOptions.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-slate-400 mb-1">
+                        Search
+                      </label>
+                      <input
+                        placeholder="Search description or citizen..."
+                        className="w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-1.5 text-xs"
+                        value={filters.search}
+                        onChange={(e) =>
+                          setFilters((f) => ({ ...f, search: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {filteredRequests.length === 0 ? (
+                    <p className="text-xs text-slate-400">No issues found.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-auto pr-1 text-xs">
+                      {filteredRequests.map((r) => (
+                        <div
+                          key={r.id}
+                          onClick={() => openIssue(r)}
+                          className="cursor-pointer border border-white/10 rounded-xl px-3 py-3 flex flex-col gap-2 hover:border-emerald-500/40 hover:bg-slate-900"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-white">
+                                #{r.id} • {r.issue_type}
+                              </span>
+                              <span className="text-slate-400 text-[11px]">
+                                {r.municipalityName}
+                              </span>
+                            </div>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full text-white ${
+                                STATUS_COLORS[
+                                  (r.status || "pending").toLowerCase()
+                                ] || "bg-slate-700"
+                              }`}
+                            >
+                              {(r.status || "pending").toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="text-slate-300 line-clamp-2">
+                            {r.description}
+                          </p>
+                          <p className="text-slate-400">
+                            Citizen: {r.citizenName}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </main>
+            )}
+
+            {/* ISSUE DETAIL DRAWER */}
+            {selectedIssue && (
+              <div className="fixed inset-0 z-40 flex">
+                <div
+                  className="flex-1 bg-black/50"
+                  onClick={closeIssueDrawer}
+                />
+                <div className="w-full max-w-md bg-slate-950 border-l border-white/10 px-4 py-4 overflow-y-auto text-xs">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-[11px] text-slate-400">
+                        Issue #{selectedIssue.id}
+                      </p>
+                      <h3 className="text-sm font-semibold text-white">
+                        {selectedIssue.issue_type}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={closeIssueDrawer}
+                      className="text-[11px] px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 mb-4">
+                    <p className="text-slate-300">
+                      {selectedIssue.description}
+                    </p>
+                    <p className="text-slate-400">
+                      Citizen: {selectedIssue.citizenName}
+                    </p>
+                    <p className="text-slate-400">
+                      Municipality: {selectedIssue.municipalityName}
+                    </p>
+                    <p className="text-slate-400">
+                      Status:{" "}
+                      <span className="px-2 py-0.5 rounded-full bg-slate-700 text-[10px]">
+                        {(selectedIssue.status || "pending").toUpperCase()}
+                      </span>
+                    </p>
+
+                    {/* NEW: show reason only when rejected */}
+                    {selectedIssue.status === "rejected" &&
+                      selectedIssue.rejectReason && (
+                        <p className="text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2 py-1">
+                          Reason for rejection: {selectedIssue.rejectReason}
+                        </p>
+                      )}
+
+                    {selectedIssue.createdAt && (
+                      <p className="text-slate-500">
+                        Created:{" "}
+                        {new Date(selectedIssue.createdAt).toLocaleString()}
+                      </p>
+                    )}
+                    {selectedIssue.completedAt && (
+                      <p className="text-slate-500">
+                        Completed:{" "}
+                        {new Date(selectedIssue.completedAt).toLocaleString()}
+                      </p>
+                    )}
+
+                    {/* Before image (user uploaded) */}
+                    {selectedIssue.imagePath && (
+                      <div>
+                        <p className="text-[11px] text-slate-400 mb-1">
+                          Before image
+                        </p>
+                        <img
+                          src={selectedIssue.imagePath}
+                          alt="Before"
+                          className="mt-1 rounded-lg border border-white/10"
+                        />
+                      </div>
+                    )}
+
+                    {/* After image (official uploaded) */}
+                    {selectedIssue.afterImagePath && (
+                      <div className="mt-3">
+                        <p className="text-[11px] text-slate-400 mb-1">
+                          After image
+                        </p>
+                        <img
+                          src={selectedIssue.afterImagePath}
+                          alt="After"
+                          className="mt-1 rounded-lg border border-white/10"
+                        />
+                      </div>
+                    )}
+
+                    {selectedIssue.latitude && selectedIssue.longitude && (
+                      <a
+                        href={`https://www.google.com/maps?q=${selectedIssue.latitude},${selectedIssue.longitude}`}
+                        target="_blank"
+                        className="text-emerald-400 underline"
+                      >
+                        View location on map
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      const root = createRoot(document.getElementById("root"));
+      root.render(<AdminApp />);
+    </script>
+  </body>
+</html>
