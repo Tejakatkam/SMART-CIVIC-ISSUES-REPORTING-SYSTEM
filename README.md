@@ -150,20 +150,6 @@ The AI model minimizes false complaints and improves issue verification before m
 
 ---
 
-# 📸 Screenshots
-
-> Add screenshots after uploading them to your repository.
-
-| Login Page | Dashboard |
-|------------|-----------|
-| ![](screenshots/login.png) | ![](screenshots/dashboard.png) |
-
-| Complaint Page | Admin Dashboard |
-|----------------|-----------------|
-| ![](screenshots/complaint.png) | ![](screenshots/admin-dashboard.png) |
-
----
-
 # 🎯 Future Enhancements
 
 - 📱 Mobile Application
