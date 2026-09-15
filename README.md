@@ -181,6 +181,9 @@ https://www.linkedin.com/in/teja-katkam
 🌐 **GitHub**  
 https://github.com/TejaKatkam
 
+👾 **Portfolio**
+https://tejakatkam.onrender.com/
+
 </td>
 
 <td align="center" width="50%">
