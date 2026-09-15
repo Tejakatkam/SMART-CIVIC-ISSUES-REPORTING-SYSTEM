@@ -42,10 +42,15 @@ app.use(
 
 // ---------- DB POOL ----------
 const db = mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "abhiteja2005",
-  database: "civicdb",
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : "abhiteja2005",
+  database: process.env.DB_NAME || "civicdb",
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
 // ---------- EMAIL ----------
@@ -74,7 +79,10 @@ const sendEmail = async (to, subject, text, html) => {
 // ---------- IMAGE CLASSIFICATION ----------
 const classifyImage = (imagePath, category) => {
   return new Promise((resolve) => {
-    const command = `python classify.py "${imagePath}" "${category}"`;
+    const pythonCmd =
+      process.env.PYTHON_CMD ||
+      (process.platform === "win32" ? "python" : "python3");
+    const command = `${pythonCmd} classify.py "${imagePath}" "${category}"`;
 
     console.log("[CLASSIFY] Executing command:", command);
     console.log("[CLASSIFY] Current directory:", __dirname);
@@ -998,6 +1006,7 @@ Please review and take action if required.`;
 });
 
 // ---------- START SERVER ----------
-app.listen(3000, () => {
-  console.log("Smart Civic System running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Smart Civic System running on port ${PORT}`);
 });

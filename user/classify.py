@@ -61,7 +61,7 @@ def predict_category(img_path: str, category: str) -> float:
             print(f"Loading real model: {model_path}", file=sys.stderr)
             model = load_model(str(model_path), compile=False)
 
-            img = image.load_img(img_path, target_size=IMG_SIZE)
+            img = image.load_img(img_path, target_size=IMG_SIZE, interpolation="bilinear")
             img_array = image.img_to_array(img)
             img_array = np.expand_dims(img_array, axis=0)
             img_array /= 255.0

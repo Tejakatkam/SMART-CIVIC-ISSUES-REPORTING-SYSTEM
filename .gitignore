@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 node_modules/
 *.log
+uploads/*
+!uploads/.gitkeep
+user/code/
