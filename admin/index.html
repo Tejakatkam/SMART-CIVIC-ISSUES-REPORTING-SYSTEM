@@ -79,6 +79,17 @@
         const muniPendingChartRef = useRef(null);
         const muniStatusChartRef = useRef(null);
 
+        // Profile states
+        const [adminProfileData, setAdminProfileData] = useState(null);
+        const [adminProfileLoading, setAdminProfileLoading] = useState(false);
+        const [adminPasswordForm, setAdminPasswordForm] = useState({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+        const [adminPasswordSubmitting, setAdminPasswordSubmitting] = useState(false);
+        const [adminPasswordMessage, setAdminPasswordMessage] = useState({ type: "", text: "" });
+
         useEffect(() => {
           fetch("/api/admin/me")
             .then((r) => r.json())
@@ -135,6 +146,55 @@
           setOfficials([]);
           setSelectedIssue(null);
           setIssueTimeline([]);
+        };
+
+        const loadAdminProfile = async () => {
+          setAdminProfileLoading(true);
+          try {
+            const data = await safeFetch("/api/admin/profile");
+            if (data && data.admin) {
+              setAdminProfileData(data);
+            }
+          } catch (e) {
+            console.error("Failed to load admin profile:", e);
+          } finally {
+            setAdminProfileLoading(false);
+          }
+        };
+
+        const handleAdminPasswordChange = async (e) => {
+          e.preventDefault();
+          setAdminPasswordMessage({ type: "", text: "" });
+
+          if (adminPasswordForm.newPassword !== adminPasswordForm.confirmPassword) {
+            setAdminPasswordMessage({ type: "error", text: "New passwords do not match." });
+            return;
+          }
+          if (adminPasswordForm.newPassword.length < 6) {
+            setAdminPasswordMessage({ type: "error", text: "Password must be at least 6 characters." });
+            return;
+          }
+
+          setAdminPasswordSubmitting(true);
+          try {
+            const res = await safeFetch("/api/admin/profile/change-password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                currentPassword: adminPasswordForm.currentPassword,
+                newPassword: adminPasswordForm.newPassword,
+              }),
+            });
+
+            if (res?.success) {
+              setAdminPasswordMessage({ type: "success", text: res.message || "Password updated successfully!" });
+              setAdminPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+            }
+          } catch (e) {
+            setAdminPasswordMessage({ type: "error", text: "Failed to update password." });
+          } finally {
+            setAdminPasswordSubmitting(false);
+          }
         };
 
         const loadAll = async () => {
@@ -525,9 +585,9 @@
                   <div className="hidden sm:flex items-center gap-2 text-xs">
                     <button
                       onClick={() => setPage("dashboard")}
-                      className={`px-3 py-1 rounded-full ${
+                      className={`px-3 py-1 rounded-full font-medium transition ${
                         page === "dashboard"
-                          ? "bg-emerald-500 text-slate-950"
+                          ? "bg-emerald-500 text-slate-950 font-semibold"
                           : "bg-slate-800 text-slate-200 hover:bg-slate-700"
                       }`}
                     >
@@ -535,9 +595,9 @@
                     </button>
                     <button
                       onClick={() => setPage("analytics")}
-                      className={`px-3 py-1 rounded-full ${
+                      className={`px-3 py-1 rounded-full font-medium transition ${
                         page === "analytics"
-                          ? "bg-emerald-500 text-slate-950"
+                          ? "bg-emerald-500 text-slate-950 font-semibold"
                           : "bg-slate-800 text-slate-200 hover:bg-slate-700"
                       }`}
                     >
@@ -545,22 +605,45 @@
                     </button>
                     <button
                       onClick={() => setPage("settings")}
-                      className={`px-3 py-1 rounded-full ${
+                      className={`px-3 py-1 rounded-full font-medium transition ${
                         page === "settings"
-                          ? "bg-emerald-500 text-slate-950"
+                          ? "bg-emerald-500 text-slate-950 font-semibold"
                           : "bg-slate-800 text-slate-200 hover:bg-slate-700"
                       }`}
                     >
                       Settings
                     </button>
+                    <button
+                      onClick={() => {
+                        setPage("profile");
+                        loadAdminProfile();
+                      }}
+                      className={`px-3 py-1 rounded-full font-medium transition ${
+                        page === "profile"
+                          ? "bg-emerald-500 text-slate-950 font-semibold"
+                          : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                      }`}
+                    >
+                      Profile
+                    </button>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-300">
-                      {admin?.username} (admin)
-                    </span>
+                    <button
+                      onClick={() => {
+                        setPage("profile");
+                        loadAdminProfile();
+                      }}
+                      className="text-xs text-slate-300 hover:text-emerald-400 transition flex items-center gap-1.5 cursor-pointer bg-slate-900/60 hover:bg-slate-800 px-3 py-1 rounded-full border border-white/10"
+                      title="View Admin Profile"
+                    >
+                      <div className="h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center text-[9px] font-bold text-slate-950">
+                        {admin?.username ? admin.username.charAt(0).toUpperCase() : "A"}
+                      </div>
+                      <span>{admin?.username} (admin)</span>
+                    </button>
                     <button
                       onClick={handleLogout}
-                      className="text-xs px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+                      className="text-xs px-3 py-1 rounded-full bg-slate-800 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/30 transition border border-white/5"
                     >
                       Logout
                     </button>
@@ -661,7 +744,7 @@
                 </section>
               </main>
             ) : page === "settings" ? (
-              <main className="flex-1 max-w-6xl mx.auto px-4 py-6 space-y-6">
+              <main className="flex-1 max-w-6xl mx-auto px-4 py-6 space-y-6">
                 {error && (
                   <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
                     {error}
@@ -676,6 +759,177 @@
                     Here you will manage municipalities, issue types, priorities
                     and global SLA configs once backend endpoints are ready.
                   </p>
+                </section>
+              </main>
+            ) : page === "profile" ? (
+              <main className="flex-1 max-w-4xl mx-auto px-4 py-6 space-y-6">
+                {error && (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
+
+                {/* Admin Profile Card */}
+                <section className="bg-slate-900/90 border border-white/10 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-emerald-500 via-cyan-500 to-primary-500 flex items-center justify-center text-2xl font-black text-slate-950 shadow-lg ring-4 ring-white/10">
+                        {admin?.username ? admin.username.substring(0, 2).toUpperCase() : "AD"}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-bold text-white">{admin?.username || "Administrator"}</h2>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Superuser
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Role: <span className="text-slate-200 font-medium">System Administrator</span> • Full Control
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={loadAdminProfile}
+                      disabled={adminProfileLoading}
+                      className="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-medium text-slate-300 transition flex items-center gap-1.5"
+                    >
+                      <svg className={`h-3.5 w-3.5 ${adminProfileLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </button>
+                  </div>
+
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-slate-400 text-[11px]">System Email</p>
+                      <p className="mt-1 text-white font-medium truncate">
+                        {adminProfileData?.admin?.email || admin?.email || "smartcivicissuereportingsystem@gmail.com"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-slate-400 text-[11px]">Account Status</p>
+                      <p className="mt-1 text-emerald-400 font-medium flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Active & Fully Authorized
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-slate-400 text-[11px]">Administrative Scope</p>
+                      <p className="mt-1 text-white font-medium">
+                        Platform-wide (All Municipalities & Citizens)
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-slate-400 text-[11px]">Created Date</p>
+                      <p className="mt-1 text-white font-medium">
+                        {adminProfileData?.admin?.createdAt
+                          ? new Date(adminProfileData.admin.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                          : "Primary Root Admin"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* System Platform Metrics */}
+                  <div className="pt-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+                      Platform Overview Statistics
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">Citizens</p>
+                        <p className="text-2xl font-bold text-white mt-1">
+                          {adminProfileData?.stats?.totalCitizens ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">Officials</p>
+                        <p className="text-2xl font-bold text-cyan-400 mt-1">
+                          {adminProfileData?.stats?.totalOfficials ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider">Municipalities</p>
+                        <p className="text-2xl font-bold text-primary-400 mt-1">
+                          {adminProfileData?.stats?.totalMunicipalities ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
+                        <p className="text-[10px] text-emerald-300 uppercase tracking-wider">Resolved Issues</p>
+                        <p className="text-2xl font-bold text-emerald-400 mt-1">
+                          {adminProfileData?.stats?.totalCompleted ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Admin Change Password */}
+                  <div className="pt-4 border-t border-white/10">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+                      Security & Password
+                    </h3>
+
+                    {adminPasswordMessage.text && (
+                      <div className={`p-3 rounded-xl text-xs mb-4 ${
+                        adminPasswordMessage.type === 'success'
+                          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+                          : 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
+                      }`}>
+                        {adminPasswordMessage.text}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleAdminPasswordChange} className="space-y-3 max-w-md">
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">Current Password</label>
+                        <input
+                          type="password"
+                          required
+                          value={adminPasswordForm.currentPassword}
+                          onChange={(e) => setAdminPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                          placeholder="••••••••"
+                          className="w-full rounded-xl border border-white/10 bg-slate-800/70 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-slate-400 mb-1">New Password</label>
+                          <input
+                            type="password"
+                            required
+                            value={adminPasswordForm.newPassword}
+                            onChange={(e) => setAdminPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                            placeholder="Min. 6 chars"
+                            className="w-full rounded-xl border border-white/10 bg-slate-800/70 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-400 mb-1">Confirm New</label>
+                          <input
+                            type="password"
+                            required
+                            value={adminPasswordForm.confirmPassword}
+                            onChange={(e) => setAdminPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                            placeholder="Confirm"
+                            className="w-full rounded-xl border border-white/10 bg-slate-800/70 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={adminPasswordSubmitting}
+                          className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-lg disabled:opacity-50 cursor-pointer"
+                        >
+                          {adminPasswordSubmitting ? "Updating..." : "Update Admin Password"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </section>
               </main>
             ) : (

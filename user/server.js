@@ -347,7 +347,7 @@ app.get("/api/me", async (req, res) => {
 
   try {
     const [rows] = await db.query(
-      `SELECT u.id, u.username, u.role, u.municipalityId, m.name AS municipalityName
+      `SELECT u.id, u.username, u.email, u.role, u.municipalityId, u.accountStatus, u.createdAt, m.name AS municipalityName
        FROM users u
        LEFT JOIN municipalities m ON u.municipalityId = m.id
        WHERE u.id = ?`,
@@ -357,6 +357,119 @@ app.get("/api/me", async (req, res) => {
     res.json({ user: rows[0] || null });
   } catch (err) {
     res.json({ user: null });
+  }
+});
+
+// ---------- PROFILE ENDPOINTS ----------
+app.get("/api/profile", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT u.id, u.username, u.email, u.role, u.municipalityId, u.accountStatus, u.createdAt,
+              m.name AS municipalityName, m.email AS municipalityEmail
+       FROM users u
+       LEFT JOIN municipalities m ON u.municipalityId = m.id
+       WHERE u.id = ?`,
+      [req.session.userId],
+    );
+
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    let stats = {};
+
+    if (user.role === "user") {
+      const [[reportStats]] = await db.query(
+        `SELECT 
+           COUNT(*) AS totalReports,
+           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completedReports,
+           SUM(CASE WHEN status IN ('pending', 'accepted') THEN 1 ELSE 0 END) AS pendingReports,
+           SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejectedReports,
+           SUM(CASE WHEN feedback = 'satisfied' THEN 1 ELSE 0 END) AS satisfiedFeedback,
+           SUM(CASE WHEN feedback = 'unsatisfied' THEN 1 ELSE 0 END) AS unsatisfiedFeedback
+         FROM requests WHERE userId = ?`,
+        [user.id],
+      );
+      stats = {
+        totalReports: Number(reportStats?.totalReports) || 0,
+        completedReports: Number(reportStats?.completedReports) || 0,
+        pendingReports: Number(reportStats?.pendingReports) || 0,
+        rejectedReports: Number(reportStats?.rejectedReports) || 0,
+        satisfiedFeedback: Number(reportStats?.satisfiedFeedback) || 0,
+        unsatisfiedFeedback: Number(reportStats?.unsatisfiedFeedback) || 0,
+      };
+    } else if (user.role === "municipality") {
+      const [[jurisdictionStats]] = await db.query(
+        `SELECT 
+           COUNT(*) AS totalJurisdictionReports,
+           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completedReports,
+           SUM(CASE WHEN status IN ('pending', 'accepted') THEN 1 ELSE 0 END) AS pendingReports,
+           SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejectedReports
+         FROM requests WHERE municipalityId = ?`,
+        [user.municipalityId],
+      );
+
+      const [[myCompletions]] = await db.query(
+        `SELECT COUNT(*) AS count FROM official_issue_completions WHERE officialId = ?`,
+        [user.id],
+      );
+
+      stats = {
+        totalJurisdictionReports: Number(jurisdictionStats?.totalJurisdictionReports) || 0,
+        completedReports: Number(jurisdictionStats?.completedReports) || 0,
+        pendingReports: Number(jurisdictionStats?.pendingReports) || 0,
+        rejectedReports: Number(jurisdictionStats?.rejectedReports) || 0,
+        myCompletions: Number(myCompletions?.count) || 0,
+      };
+    }
+
+    res.json({ user, stats });
+  } catch (err) {
+    console.error("Profile fetch error:", err);
+    res.status(500).json({ error: "Failed to load profile" });
+  }
+});
+
+app.post("/api/profile/change-password", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Current and new passwords are required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "New password must be at least 6 characters" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      "SELECT id, password FROM users WHERE id = ?",
+      [req.session.userId],
+    );
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const match = bcrypt.compareSync(currentPassword, user.password);
+    if (!match) {
+      return res.status(400).json({ error: "Incorrect current password" });
+    }
+
+    const hashedPassword = bcrypt.hashSync(newPassword, 10);
+    await db.query("UPDATE users SET password = ? WHERE id = ?", [
+      hashedPassword,
+      user.id,
+    ]);
+
+    res.json({ success: true, message: "Password updated successfully!" });
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(500).json({ error: "Failed to update password" });
   }
 });
 
@@ -640,9 +753,84 @@ app.get("/api/admin/me", async (req, res) => {
     admin: {
       id: req.user.id,
       username: req.user.username,
+      email: req.user.email,
       role: req.user.role,
     },
   });
+});
+
+app.get("/api/admin/profile", requireAdmin, async (req, res) => {
+  try {
+    const [[adminUser]] = await db.query(
+      "SELECT id, username, email, role, createdAt, accountStatus FROM users WHERE id = ?",
+      [req.user.id],
+    );
+
+    const [[counts]] = await db.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM users WHERE role = 'user') AS totalCitizens,
+        (SELECT COUNT(*) FROM users WHERE role = 'municipality') AS totalOfficials,
+        (SELECT COUNT(*) FROM municipalities) AS totalMunicipalities,
+        (SELECT COUNT(*) FROM requests) AS totalRequests,
+        (SELECT COUNT(*) FROM requests WHERE status = 'completed') AS totalCompleted,
+        (SELECT COUNT(*) FROM requests WHERE status = 'pending') AS totalPending,
+        (SELECT COUNT(*) FROM requests WHERE status = 'accepted') AS totalAccepted,
+        (SELECT COUNT(*) FROM requests WHERE status = 'rejected') AS totalRejected
+    `);
+
+    res.json({
+      admin: adminUser,
+      stats: {
+        totalCitizens: Number(counts?.totalCitizens) || 0,
+        totalOfficials: Number(counts?.totalOfficials) || 0,
+        totalMunicipalities: Number(counts?.totalMunicipalities) || 0,
+        totalRequests: Number(counts?.totalRequests) || 0,
+        totalCompleted: Number(counts?.totalCompleted) || 0,
+        totalPending: Number(counts?.totalPending) || 0,
+        totalAccepted: Number(counts?.totalAccepted) || 0,
+        totalRejected: Number(counts?.totalRejected) || 0,
+      },
+    });
+  } catch (err) {
+    console.error("Admin profile error:", err);
+    res.status(500).json({ error: "Failed to fetch admin profile" });
+  }
+});
+
+app.post("/api/admin/profile/change-password", requireAdmin, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Current and new passwords are required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "New password must be at least 6 characters" });
+  }
+
+  try {
+    const [rows] = await db.query(
+      "SELECT id, password FROM users WHERE id = ?",
+      [req.user.id],
+    );
+    const admin = rows[0];
+    if (!admin) return res.status(404).json({ error: "Admin not found" });
+
+    const match = bcrypt.compareSync(currentPassword, admin.password);
+    if (!match) {
+      return res.status(400).json({ error: "Incorrect current password" });
+    }
+
+    const hashedPassword = bcrypt.hashSync(newPassword, 10);
+    await db.query("UPDATE users SET password = ? WHERE id = ?", [
+      hashedPassword,
+      admin.id,
+    ]);
+
+    res.json({ success: true, message: "Admin password updated successfully!" });
+  } catch (err) {
+    console.error("Admin change password error:", err);
+    res.status(500).json({ error: "Failed to update password" });
+  }
 });
 
 app.get("/api/admin/requests", requireAdmin, async (req, res) => {

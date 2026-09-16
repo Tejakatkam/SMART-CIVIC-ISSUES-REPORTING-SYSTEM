@@ -243,6 +243,14 @@
         const [issueFilter, setIssueFilter] = useState("all");
         const [sortOrder, setSortOrder] = useState("newest"); // 'newest' | 'oldest'
 
+        // Profile states
+        const [profileModalOpen, setProfileModalOpen] = useState(false);
+        const [profileData, setProfileData] = useState(null);
+        const [profileLoading, setProfileLoading] = useState(false);
+        const [profileTab, setProfileTab] = useState("overview"); // 'overview' | 'security'
+        const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+
         // Modal handlers
         const openImageModal = (src, alt = "") => {
           setModalImage({ src, alt });
@@ -483,6 +491,61 @@
           await safeFetch("/api/logout", { method: "POST" });
           setUser(null);
           setPage("home");
+        };
+
+        const loadProfile = async () => {
+          setProfileLoading(true);
+          try {
+            const data = await safeFetch("/api/profile");
+            if (data && data.user) {
+              setProfileData(data);
+            }
+          } catch (err) {
+            console.error("Profile load error:", err);
+          } finally {
+            setProfileLoading(false);
+          }
+        };
+
+        const openProfileModal = () => {
+          setProfileTab("overview");
+          setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+          setProfileModalOpen(true);
+          loadProfile();
+        };
+
+        const handlePasswordChange = async (e) => {
+          e.preventDefault();
+          if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            showToast("New passwords do not match", "error");
+            return;
+          }
+          if (passwordForm.newPassword.length < 6) {
+            showToast("Password must be at least 6 characters", "error");
+            return;
+          }
+
+          setPasswordSubmitting(true);
+          try {
+            const res = await safeFetch("/api/profile/change-password", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                currentPassword: passwordForm.currentPassword,
+                newPassword: passwordForm.newPassword,
+              }),
+            });
+
+            if (res?.success) {
+              showToast(res.message || "Password updated successfully!", "success");
+              setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+              setProfileTab("overview");
+            }
+          } catch (err) {
+            showToast("Failed to update password", "error");
+          } finally {
+            setPasswordSubmitting(false);
+          }
         };
 
         const muniRequests = useMemo(
@@ -846,20 +909,31 @@
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-sm text-white font-medium">
-                      {user.username}
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      {user.role === "user"
-                        ? "Citizen"
-                        : "Municipality Official"}
-                    </span>
-                  </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={openProfileModal}
+                    className="flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 transition text-left group cursor-pointer"
+                    title="View Profile Details & Stats"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary-500 via-accent-500 to-emerald-500 flex items-center justify-center text-xs font-bold text-white shadow ring-2 ring-white/10">
+                      {user.username ? user.username.charAt(0).toUpperCase() : "U"}
+                    </div>
+                    <div className="hidden sm:flex flex-col">
+                      <span className="text-xs text-white font-medium group-hover:text-accent-400 transition flex items-center gap-1">
+                        {user.username}
+                        <svg className="h-3 w-3 text-slate-400 group-hover:text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {user.role === "user" ? "Citizen" : "Municipal Official"} • Profile
+                      </span>
+                    </div>
+                  </button>
+
                   <button
                     onClick={handleLogout}
-                    className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition"
+                    className="rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-100 hover:bg-rose-500/20 hover:border-rose-500/30 hover:text-rose-300 transition"
                   >
                     Logout
                   </button>
@@ -1499,6 +1573,231 @@
                 alt={modalImage.alt}
                 onClose={closeImageModal}
               />
+            )}
+
+            {/* Profile Modal */}
+            {profileModalOpen && (
+              <div 
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in overflow-y-auto"
+                onClick={() => setProfileModalOpen(false)}
+              >
+                <div 
+                  className="relative w-full max-w-xl rounded-3xl border border-white/10 bg-slate-900/95 p-6 sm:p-8 shadow-2xl space-y-6 my-8"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Close button */}
+                  <button
+                    onClick={() => setProfileModalOpen(false)}
+                    className="absolute top-5 right-5 text-slate-400 hover:text-white rounded-full p-1.5 hover:bg-white/10 transition"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
+                  {/* Profile Header */}
+                  <div className="flex items-center gap-4 border-b border-white/10 pb-5">
+                    <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-primary-500 via-accent-500 to-emerald-500 flex items-center justify-center text-2xl font-bold text-white shadow-lg ring-4 ring-white/10 flex-shrink-0">
+                      {user.username ? user.username.charAt(0).toUpperCase() : "U"}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-xl font-bold text-white">{user.username}</h2>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ${
+                          user.role === 'user' 
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                            : 'bg-accent-500/20 text-accent-300 border border-accent-500/30'
+                        }`}>
+                          {user.role === 'user' ? 'Citizen' : 'Municipal Official'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                        <svg className="h-3.5 w-3.5 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Jurisdiction: <span className="text-slate-200 font-medium">{user.municipalityName}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="flex gap-2 border-b border-white/10 pb-2">
+                    <button
+                      onClick={() => setProfileTab('overview')}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+                        profileTab === 'overview'
+                          ? 'bg-accent-500 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      Account Overview & Stats
+                    </button>
+                    <button
+                      onClick={() => setProfileTab('security')}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+                        profileTab === 'security'
+                          ? 'bg-accent-500 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      Security & Password
+                    </button>
+                  </div>
+
+                  {/* Tab 1: Overview */}
+                  {profileTab === 'overview' && (
+                    <div className="space-y-6">
+                      {/* Personal Details Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5">
+                          <p className="text-slate-400 text-[11px]">Email Address</p>
+                          <p className="mt-1 text-white font-medium truncate">
+                            {profileData?.user?.email || user.email || 'Not provided'}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5">
+                          <p className="text-slate-400 text-[11px]">Account Status</p>
+                          <p className="mt-1 flex items-center gap-1.5 font-medium text-emerald-400">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Active
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5">
+                          <p className="text-slate-400 text-[11px]">Assigned Municipality</p>
+                          <p className="mt-1 text-white font-medium">
+                            {user.municipalityName}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-3.5">
+                          <p className="text-slate-400 text-[11px]">Member Since</p>
+                          <p className="mt-1 text-white font-medium">
+                            {profileData?.user?.createdAt 
+                              ? new Date(profileData.user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                              : 'Active Member'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Performance & Activity Statistics */}
+                      <div>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+                          {user.role === 'user' ? 'Your Civic Contribution' : 'Jurisdiction Work Summary'}
+                        </h3>
+
+                        {profileLoading ? (
+                          <div className="py-6 text-center text-xs text-slate-400">
+                            <span className="inline-block h-4 w-4 rounded-full border-2 border-accent-400 border-t-transparent animate-spin mr-2"></span>
+                            Loading statistics...
+                          </div>
+                        ) : user.role === 'user' ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
+                              <p className="text-[10px] text-slate-400 uppercase">Total Reports</p>
+                              <p className="text-xl font-bold text-white mt-1">{profileData?.stats?.totalReports ?? requests.length}</p>
+                            </div>
+                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-center">
+                              <p className="text-[10px] text-emerald-300 uppercase">Completed</p>
+                              <p className="text-xl font-bold text-emerald-400 mt-1">
+                                {profileData?.stats?.completedReports ?? requests.filter(r => r.status === 'completed').length}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-center">
+                              <p className="text-[10px] text-amber-300 uppercase">Pending</p>
+                              <p className="text-xl font-bold text-amber-400 mt-1">
+                                {profileData?.stats?.pendingReports ?? requests.filter(r => !r.status || r.status === 'pending' || r.status === 'accepted').length}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-center">
+                              <p className="text-[10px] text-cyan-300 uppercase">Satisfied</p>
+                              <p className="text-xl font-bold text-cyan-400 mt-1">
+                                {profileData?.stats?.satisfiedFeedback ?? requests.filter(r => r.feedback === 'satisfied').length}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
+                              <p className="text-[10px] text-slate-400 uppercase">Jurisdiction Total</p>
+                              <p className="text-xl font-bold text-white mt-1">{profileData?.stats?.totalJurisdictionReports ?? muniRequests.length}</p>
+                            </div>
+                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-center">
+                              <p className="text-[10px] text-emerald-300 uppercase">Resolved</p>
+                              <p className="text-xl font-bold text-emerald-400 mt-1">
+                                {profileData?.stats?.completedReports ?? muniRequests.filter(r => r.status === 'completed').length}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-center">
+                              <p className="text-[10px] text-amber-300 uppercase">Action Needed</p>
+                              <p className="text-xl font-bold text-amber-400 mt-1">
+                                {profileData?.stats?.pendingReports ?? muniRequests.filter(r => !r.status || r.status === 'pending').length}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-primary-500/20 bg-primary-500/10 p-3 text-center">
+                              <p className="text-[10px] text-primary-300 uppercase">Completed by Me</p>
+                              <p className="text-xl font-bold text-primary-400 mt-1">{profileData?.stats?.myCompletions ?? 0}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 2: Security / Change Password */}
+                  {profileTab === 'security' && (
+                    <form onSubmit={handlePasswordChange} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                          Current Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={passwordForm.currentPassword}
+                          onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                          placeholder="••••••••"
+                          className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                          New Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={passwordForm.newPassword}
+                          onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                          placeholder="Min. 6 characters"
+                          className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                          Confirm New Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={passwordForm.confirmPassword}
+                          onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                          placeholder="Confirm new password"
+                          className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                        />
+                      </div>
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={passwordSubmitting}
+                          className="w-full rounded-xl bg-gradient-to-r from-primary-500 via-accent-500 to-emerald-500 py-3 text-sm font-semibold text-white shadow-lg hover:brightness-110 transition disabled:opacity-50"
+                        >
+                          {passwordSubmitting ? "Updating Password..." : "Save New Password"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
             )}
 
             <Footer />
