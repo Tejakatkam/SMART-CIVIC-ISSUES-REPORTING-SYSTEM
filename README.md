@@ -19,8 +19,8 @@ An enterprise-grade, full-stack AI-powered civic governance platform that automa
 
 ## 🌐 Live Deployments
 
-* **Citizen & Municipal Portal**: [https://smart-civic-system.onrender.com/](https://smart-civic-system.onrender.com/)
-* **Admin Management Portal**: [https://smart-civic-system.onrender.com/admin](https://smart-civic-system.onrender.com/admin)
+* **Citizen & Municipal Portal**: [https://smart-civic-issues-reporting-system.onrender.com/](https://smart-civic-issues-reporting-system.onrender.com/)
+* **Admin Management Portal**: [https://smart-civic-issues-reporting-system.onrender.com//admin](https://smart-civic-issues-reporting-system.onrender.com//admin)
 * **Serverless Email Relay**: Vercel Serverless Function (`/api/send-email`)
 * **Database**: TiDB Cloud Serverless MySQL (AWS Singapore, SSL Encrypted)
 
