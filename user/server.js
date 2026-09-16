@@ -110,6 +110,28 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendEmail = async (to, subject, text, html) => {
+  const vercelEmailUrl = process.env.VERCEL_EMAIL_URL;
+
+  // 1) Try Vercel Serverless Relay (HTTPS port 443 - never blocked by cloud hosts)
+  if (vercelEmailUrl) {
+    try {
+      const response = await fetch(vercelEmailUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, text, html }),
+      });
+      const data = await response.json().catch(() => null);
+      if (data && data.success) {
+        console.log(`[EMAIL VERCEL SUCCESS] Sent to ${to} (MessageId: ${data.messageId || "ok"})`);
+        return;
+      }
+      console.warn(`[EMAIL VERCEL WARN] Vercel response:`, data?.error || "unknown");
+    } catch (e) {
+      console.warn(`[EMAIL VERCEL FAIL] Could not reach Vercel relay: ${e.message}. Falling back to direct SMTP.`);
+    }
+  }
+
+  // 2) Fallback to Direct Gmail SMTP
   try {
     await transporter.sendMail({
       from: "Smart Civic System <smartcivicissuereportingsystem@gmail.com>",
@@ -118,8 +140,9 @@ const sendEmail = async (to, subject, text, html) => {
       text, // Plain text fallback
       html, // Styled HTML version
     });
+    console.log(`[EMAIL SMTP SUCCESS] Sent to ${to}`);
   } catch (err) {
-    console.error("[EMAIL] Send failed (non-blocking):", err.message);
+    console.error("[EMAIL ERROR] Send failed (non-blocking):", err.message);
   }
 };
 

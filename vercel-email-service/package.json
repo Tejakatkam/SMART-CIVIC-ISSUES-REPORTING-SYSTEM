@@ -1,0 +1,9 @@
+{
+  "name": "civic-email-service",
+  "version": "1.0.0",
+  "description": "Serverless Gmail relay for Smart Civic Reporting System",
+  "main": "api/send-email.js",
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  }
+}
