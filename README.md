@@ -30,7 +30,7 @@
 * **Citizen & Municipal Portal**: [https://smart-civic-issues-reporting-system.onrender.com/](https://smart-civic-issues-reporting-system.onrender.com/)
 * **Admin Management Portal**: [https://smart-civic-issues-reporting-system.onrender.com/admin](https://smart-civic-issues-reporting-system.onrender.com/admin)
 * **Serverless Email Relay**: Vercel Serverless Function (`/api/send-email`)
-* **Database**: TiDB Cloud Serverless MySQL (AWS Singapore, SSL Encrypted)
+* **Database**: TiDB Cloud Serverless MySQL 
 
 ---
 
@@ -127,27 +127,6 @@ The system uses transfer learning on **MobileNetV2** (pre-trained on ImageNet) w
                       └─────────────────────────────┘
 ```
 
----
-
-## ⏱️ How to Prevent Inactivity Sleep with UptimeRobot (24/7 Live)
-
-Render Free Tier puts web services to sleep after **15 minutes of inactivity**, leading to a 30–50 second "cold start" delay when someone accesses your site. 
-
-You can keep your application **100% awake 24/7 for free** using **UptimeRobot**:
-
-### Step-by-Step UptimeRobot Setup:
-1. Go to **[uptimerobot.com](https://uptimerobot.com/)** and sign up for a free account.
-2. In your UptimeRobot dashboard, click **"+ Add New Monitor"**.
-3. Fill in the monitor settings:
-   * **Monitor Type**: Select **`HTTP(s)`**
-   * **Friendly Name**: `Smart Civic System`
-   * **URL (or IP)**: `https://smart-civic-issues-reporting-system.onrender.com/favicon.ico`  
-     *(Pinging `/favicon.ico` returns HTTP 200 with the brand favicon, keeping your server awake with zero database or CPU load)*.
-   * **Monitoring Interval**: Set to **`Every 5 minutes`** (or 10 minutes).
-4. Click **"Create Monitor"**.
-
-> **Result**: UptimeRobot will send a lightweight ping every 5 minutes. Render will never detect inactivity, meaning recruiters and citizens will experience **zero loading delay** at all times!
----
 
 ## 📁 Project Structure
 
