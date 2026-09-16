@@ -1,7 +1,15 @@
+<p align="center">
+  <img src="./logo.png" alt="Smart Civic Issue Reporting System Logo" width="180" />
+</p>
+
 <h1 align="center">🚀 Smart Civic Issue Reporting System (SCIRS)</h1>
 
 <p align="center">
-An enterprise-grade, full-stack AI-powered civic governance platform that automates municipal issue detection, validation, geo-routing, and resolution tracking.
+  <em>A Cleaner, Safer, Brighter Tomorrow</em>
+</p>
+
+<p align="center">
+  An enterprise-grade, full-stack AI-powered civic governance platform that automates municipal issue detection, validation, geo-routing, and resolution tracking.
 </p>
 
 <p align="center">
@@ -20,7 +28,7 @@ An enterprise-grade, full-stack AI-powered civic governance platform that automa
 ## 🌐 Live Deployments
 
 * **Citizen & Municipal Portal**: [https://smart-civic-issues-reporting-system.onrender.com/](https://smart-civic-issues-reporting-system.onrender.com/)
-* **Admin Management Portal**: [https://smart-civic-issues-reporting-system.onrender.com//admin](https://smart-civic-issues-reporting-system.onrender.com//admin)
+* **Admin Management Portal**: [https://smart-civic-issues-reporting-system.onrender.com/admin](https://smart-civic-issues-reporting-system.onrender.com/admin)
 * **Serverless Email Relay**: Vercel Serverless Function (`/api/send-email`)
 * **Database**: TiDB Cloud Serverless MySQL (AWS Singapore, SSL Encrypted)
 
@@ -118,6 +126,27 @@ The system uses transfer learning on **MobileNetV2** (pre-trained on ImageNet) w
                       │    Gmail SMTP (Nodemailer)  │
                       └─────────────────────────────┘
 ```
+
+---
+
+## ⏱️ How to Prevent Inactivity Sleep with UptimeRobot (24/7 Live)
+
+Render Free Tier puts web services to sleep after **15 minutes of inactivity**, leading to a 30–50 second "cold start" delay when someone accesses your site. 
+
+You can keep your application **100% awake 24/7 for free** using **UptimeRobot**:
+
+### Step-by-Step UptimeRobot Setup:
+1. Go to **[uptimerobot.com](https://uptimerobot.com/)** and sign up for a free account.
+2. In your UptimeRobot dashboard, click **"+ Add New Monitor"**.
+3. Fill in the monitor settings:
+   * **Monitor Type**: Select **`HTTP(s)`**
+   * **Friendly Name**: `Smart Civic System`
+   * **URL (or IP)**: `https://smart-civic-issues-reporting-system.onrender.com/favicon.ico`  
+     *(Pinging `/favicon.ico` returns HTTP 200 with the brand favicon, keeping your server awake with zero database or CPU load)*.
+   * **Monitoring Interval**: Set to **`Every 5 minutes`** (or 10 minutes).
+4. Click **"Create Monitor"**.
+
+> **Result**: UptimeRobot will send a lightweight ping every 5 minutes. Render will never detect inactivity, meaning recruiters and citizens will experience **zero loading delay** at all times!
 ---
 
 ## 📁 Project Structure
@@ -125,24 +154,37 @@ The system uses transfer learning on **MobileNetV2** (pre-trained on ImageNet) w
 ```
 SMART-CIVIC-ISSUES-REPORTING-SYSTEM
 ├── admin/                         # Unified Admin Portal
-│   ├── index.html                 # Admin SPA (Analytics, Management, Profile)
-│   └── package.json
+│   ├── index.html                 # Admin SPA (Analytics, Issue Review, Officials, Profile)
+│   ├── server.js                  # Standalone Admin Express server
+│   ├── favicon.ico                # Admin portal tab icon (32x32)
+│   ├── favicon.png                # Admin portal high-res icon (64x64)
+│   ├── logo.png                   # Admin portal official branding logo
+│   └── package.json               # Admin dependencies
 ├── user/                          # Main Application Backend & Citizen Frontend
-│   ├── index.html                 # Citizen & Officer SPA UI
-│   ├── server.js                  # Express API, Auth, TiDB Pool, Email Dispatch
-│   ├── classify.py                # MobileNetV2 inference & operational thresholding
+│   ├── index.html                 # Citizen & Officer SPA UI (PWA / Mobile-responsive)
+│   ├── server.js                  # Core Express API, Auth, TiDB Pool, Multer & Email Relay
+│   ├── classify.py                # MobileNetV2 Deep Learning inference & operational threshold (0.65)
+│   ├── classify2.py               # Auxiliary inference & validation script
+│   ├── model.py                   # Model architecture definition & training pipeline
 │   ├── models/
 │   │   └── garbage.h5             # Trained MobileNetV2 Deep Learning Model (24 MB)
-│   ├── package.json
+│   ├── favicon.ico                # Citizen portal tab icon (32x32)
+│   ├── favicon.png                # Citizen portal high-res icon (64x64)
+│   ├── logo.png                   # Citizen portal official branding logo
+│   ├── package.json               # Node.js backend dependencies
 │   └── requirements.txt           # Python dependencies (TensorFlow-CPU, NumPy, Pillow)
+├── uploads/                       # Storage for reported civic issue photos & resolution evidence
 ├── vercel-email-service/          # Standalone Vercel Serverless Microservice
 │   ├── api/
-│   │   └── send-email.js          # HTTPS to Gmail SMTP relay function
-│   ├── package.json
-│   └── vercel.json
-├── requirements.txt               # Root Python specification
+│   │   └── send-email.js          # HTTPS to Gmail SMTP relay function (Port 443)
+│   ├── package.json               # Microservice dependencies (Nodemailer)
+│   └── .gitignore
+├── databaseschema.sql             # Complete database schema, tables & initial seed data
+├── requirements.txt               # Root Python dependencies for cloud buildpack
 ├── .python-version                # Pinned to Python 3.10.14 for cloud compatibility
-└── README.md
+├── .gitignore                     # Git ignore rules
+├── logo.png                       # High-resolution official system logo
+└── README.md                      # Comprehensive project documentation
 ```
 
 ---
@@ -166,8 +208,13 @@ npm install
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment Variables
-Configure your database and service credentials in environment variables or your local `.env`:
+### 4. Configure Database
+Import `databaseschema.sql` into your local MySQL or TiDB Cloud instance:
+```bash
+mysql -u root -p civicdb < ../databaseschema.sql
+```
+
+Then configure your environment variables or local `.env`:
 ```env
 DB_HOST=<your-tidb-host>
 DB_PORT=4000

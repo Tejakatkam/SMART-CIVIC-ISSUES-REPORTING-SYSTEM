@@ -35,7 +35,9 @@ app.use("/admin", express.static(ADMIN_DIR));
 app.get("/admin", (req, res) => {
   res.sendFile(path.join(ADMIN_DIR, "index.html"));
 });
-app.get("/favicon.ico", (req, res) => res.status(204).end());
+app.get("/favicon.ico", (req, res) => {
+  res.sendFile(path.join(__dirname, "favicon.ico"));
+});
 
 app.use(
   session({

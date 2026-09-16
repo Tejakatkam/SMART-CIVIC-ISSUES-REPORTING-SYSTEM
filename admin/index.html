@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <title>Admin | Smart Civic Reporting</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -522,9 +525,17 @@
           return (
             <div className="min-h-screen flex items-center justify-center px-4">
               <div className="max-w-md w-full bg-slate-900/80 border border-white/10 rounded-2xl p-8 space-y-6 text-sm">
-                <h1 className="text-xl font-semibold text-white text-center">
-                  Admin Login
-                </h1>
+                <div className="flex flex-col items-center justify-center gap-2 mb-2">
+                  <img
+                    src="/logo.png"
+                    alt="Smart Civic Logo"
+                    className="h-16 w-16 object-contain rounded-2xl border border-white/10 bg-white/5 p-1 shadow-lg"
+                  />
+                  <h1 className="text-xl font-semibold text-white text-center">
+                    Admin Portal
+                  </h1>
+                  <p className="text-xs text-slate-400">Smart Civic Reporting System</p>
+                </div>
                 {error && (
                   <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
                     {error}
@@ -573,13 +584,20 @@
             {/* Header */}
             <header className="border-b border-white/10 bg-slate-950/80">
               <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-lg font-semibold text-white">
-                    Admin Dashboard
-                  </h1>
-                  <p className="text-[11px] text-slate-400">
-                    Smart Civic Reporting System
-                  </p>
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/logo.png"
+                    alt="Logo"
+                    className="h-10 w-10 object-contain rounded-xl shadow-md border border-white/10 bg-white/5 p-0.5"
+                  />
+                  <div>
+                    <h1 className="text-lg font-semibold text-white">
+                      Admin Dashboard
+                    </h1>
+                    <p className="text-[11px] text-slate-400">
+                      Smart Civic Reporting System
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="hidden sm:flex items-center gap-2 text-xs">

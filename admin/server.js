@@ -11,6 +11,9 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 
 app.use(express.json());
 app.use(express.static(__dirname));
+app.get("/favicon.ico", (req, res) => {
+  res.sendFile(path.join(__dirname, "favicon.ico"));
+});
 
 app.use(
   session({
