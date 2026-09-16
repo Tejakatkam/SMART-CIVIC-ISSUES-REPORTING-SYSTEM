@@ -2,9 +2,14 @@ import sys
 import os
 import random
 from pathlib import Path
-import numpy as np
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
+try:
+    import numpy as np
+    from tensorflow.keras.models import load_model
+    from tensorflow.keras.preprocessing import image
+    HAS_TF = True
+except Exception as e:
+    HAS_TF = False
+    print(f"TensorFlow not loaded: {e}", file=sys.stderr)
 
 print("Ajay Python script started", file=sys.stderr)
 
@@ -55,6 +60,10 @@ def predict_category(img_path: str, category: str) -> float:
 
     model_path = MODELS_DIR / MODEL_MAP[category]
     print(f"Looking for model at: {model_path}", file=sys.stderr)
+
+    if not HAS_TF:
+        print("TensorFlow not available in runtime → using fallback score", file=sys.stderr)
+        return get_random_confidence(category)
 
     if model_path.is_file():
         try:

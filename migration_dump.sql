@@ -12,7 +12,7 @@ CREATE TABLE `municipalities` (
   `name` varchar(255) NOT NULL,
   `email` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Data for municipalities (13 rows)
 INSERT INTO municipalities (`id`, `name`, `email`) VALUES (1, 'Secunderabad', '227r1a6627@cmrtc.ac.in');
@@ -43,7 +43,7 @@ CREATE TABLE `users` (
   UNIQUE KEY `uq_users_username` (`username`),
   KEY `idx_users_municipalityId` (`municipalityId`),
   CONSTRAINT `fk_users_municipality` FOREIGN KEY (`municipalityId`) REFERENCES `municipalities` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Data for users (6 rows)
 INSERT INTO users (`id`, `username`, `password`, `email`, `role`, `municipalityId`, `createdAt`, `accountStatus`) VALUES (1, 'SCIRS', '$2b$10$/hKTJtY9Nw7TvZNwCsCIP.AUi6IPyMsp2C8Hew6bNUvx7IOrw4pZ6', 'smartcivicissuereportingsystem@gmail.com', 'admin', 1, '2026-01-19 11:20:54.000', 'active');
@@ -78,7 +78,7 @@ CREATE TABLE `requests` (
   KEY `idx_requests_status` (`status`),
   CONSTRAINT `fk_requests_municipality` FOREIGN KEY (`municipalityId`) REFERENCES `municipalities` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_requests_user` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Data for requests (11 rows)
 INSERT INTO requests (`id`, `userId`, `municipalityId`, `issue_type`, `description`, `imagePath`, `afterImagePath`, `status`, `modelResult`, `feedback`, `latitude`, `longitude`, `createdAt`, `completedAt`, `rejectReason`, `after_confidence`, `last_reopen_reason`) VALUES (1, 2, 1, 'garbage', 'kokokok', 'photo-1768803390376-436868195.jpg', 'afterPhoto-1768804008029-649315430.jpg', 'completed', '70.38', 'satisfied', '17.5971362', '78.4866924', '2026-01-19 11:46:35.000', '2026-01-19 11:56:48.000', NULL, NULL, NULL);
@@ -109,7 +109,7 @@ CREATE TABLE `official_applications` (
   KEY `idx_official_app_reviewed_by` (`reviewed_by_admin_id`),
   CONSTRAINT `fk_official_app_municipality` FOREIGN KEY (`municipality_id`) REFERENCES `municipalities` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_official_app_reviewed_by` FOREIGN KEY (`reviewed_by_admin_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Data for official_applications (2 rows)
 INSERT INTO official_applications (`id`, `username`, `email`, `password_hash`, `municipality_id`, `status`, `created_at`, `reviewed_at`, `reviewed_by_admin_id`) VALUES (1, 'munsec', '227r1a6627@cmrtc.ac.in', '$2b$10$inSUZxEeXmihJh8RaScbTuS5GhSBZW9XaB3rwNI8Y8VXMahr/aNGK', 1, 'approved', '2026-01-19 11:26:49.000', '2026-01-19 11:27:19.000', 1);
@@ -126,7 +126,7 @@ CREATE TABLE `official_issue_completions` (
   KEY `idx_oic_official` (`officialId`),
   CONSTRAINT `fk_oic_official` FOREIGN KEY (`officialId`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_oic_request` FOREIGN KEY (`requestId`) REFERENCES `requests` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Data for official_issue_completions (10 rows)
 INSERT INTO official_issue_completions (`id`, `requestId`, `officialId`, `completedAt`) VALUES (1, 3, 3, '2026-01-19 11:56:36.000');
