@@ -46,17 +46,45 @@ app.use(
 );
 
 // ---------- DB POOL ----------
+const isCloudHost =
+  process.env.DB_HOST &&
+  process.env.DB_HOST !== "localhost" &&
+  process.env.DB_HOST !== "127.0.0.1";
+const useSSL = process.env.DB_SSL === "true" || isCloudHost;
+
 const db = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : "abhiteja2005",
+  password:
+    process.env.DB_PASSWORD !== undefined
+      ? process.env.DB_PASSWORD
+      : "abhiteja2005",
   database: process.env.DB_NAME || "civicdb",
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
-  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined,
+  port: process.env.DB_PORT
+    ? parseInt(process.env.DB_PORT)
+    : isCloudHost
+      ? 4000
+      : 3306,
+  ssl: useSSL ? { rejectUnauthorized: false } : undefined,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 });
+
+console.log(
+  `[DB CONFIG] Target: ${process.env.DB_HOST || "localhost"}:${
+    process.env.DB_PORT || (isCloudHost ? 4000 : 3306)
+  } | User: ${process.env.DB_USER || "root"} | SSL: ${useSSL ? "Enabled" : "Disabled"}`,
+);
+
+db.getConnection()
+  .then((conn) => {
+    console.log("[DB SUCCESS] Connected to MySQL database successfully!");
+    conn.release();
+  })
+  .catch((err) => {
+    console.error("[DB ERROR] Could not connect to MySQL:", err.message);
+  });
 
 // ---------- EMAIL ----------
 const transporter = nodemailer.createTransport({
