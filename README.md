@@ -162,7 +162,6 @@ SMART-CIVIC-ISSUES-REPORTING-SYSTEM
 │   │   └── send-email.js          # HTTPS to Gmail SMTP relay function
 │   ├── package.json
 │   └── vercel.json
-├── migration_dump.sql             # Complete database schema and seed data for TiDB
 ├── requirements.txt               # Root Python specification
 ├── .python-version                # Pinned to Python 3.10.14 for cloud compatibility
 └── README.md
@@ -189,10 +188,15 @@ npm install
 pip install -r requirements.txt
 ```
 
-### 4. Configure Database
-Import `migration_dump.sql` into your local MySQL or TiDB Cloud instance:
-```bash
-mysql -u root -p civicdb < ../migration_dump.sql
+### 4. Configure Environment Variables
+Configure your database and service credentials in environment variables or your local `.env`:
+```env
+DB_HOST=<your-tidb-host>
+DB_PORT=4000
+DB_USER=<your-db-user>
+DB_PASSWORD=<your-db-password>
+DB_NAME=civicdb
+VERCEL_EMAIL_URL=https://<your-vercel-domain>/api/send-email
 ```
 
 ### 5. Start the Server
