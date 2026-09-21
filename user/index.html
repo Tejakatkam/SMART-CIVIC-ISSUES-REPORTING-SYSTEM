@@ -239,6 +239,11 @@
         const [modalImage, setModalImage] = useState(null);
         const [isSubmitting, setIsSubmitting] = useState(false);
         const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
+        // Auth error & loading states
+        const [loginError, setLoginError] = useState("");
+        const [isLoggingIn, setIsLoggingIn] = useState(false);
+        const [registerError, setRegisterError] = useState("");
+        const [isRegistering, setIsRegistering] = useState(false);
         // Toast state
         const [toast, setToast] = useState(null); // { message, type: 'success' | 'error' } or null
 
@@ -337,47 +342,97 @@
 
         const handleLogin = async (e) => {
           e.preventDefault();
+          setLoginError("");
+          setIsLoggingIn(true);
           const form = e.target;
-          const data = await safeFetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              username: form.username.value.trim(),
-              password: form.password.value,
-            }),
-          });
-          if (data?.user) {
-            setUser(data.user);
-            setPage("dashboard");
-            loadRequests();
+          const username = form.username.value.trim();
+          const password = form.password.value;
+
+          if (!username || !password) {
+            const msg = "Please enter both username and password.";
+            setLoginError(msg);
+            showToast(msg, "error");
+            setIsLoggingIn(false);
+            return;
+          }
+
+          try {
+            const res = await fetch("/api/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, password }),
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+              const errMsg = data.error || "Login failed. Please check your credentials.";
+              setLoginError(errMsg);
+              showToast(errMsg, "error");
+              return;
+            }
+
+            if (data?.user) {
+              setLoginError("");
+              setUser(data.user);
+              setPage("dashboard");
+              loadRequests();
+            }
+          } catch (err) {
+            const netErr = "Network error: Unable to reach the server. Please try again.";
+            setLoginError(netErr);
+            showToast(netErr, "error");
+          } finally {
+            setIsLoggingIn(false);
           }
         };
 
         const handleRegister = async (e) => {
           e.preventDefault();
+          setRegisterError("");
+          setIsRegistering(true);
           const form = e.target;
 
           if (form.password.value !== form.confirm.value) {
-            //alert("Passwords don't match");
-            showToast("Passwords don't match", "error");
+            const msg = "Passwords do not match. Please verify and re-enter.";
+            setRegisterError(msg);
+            showToast(msg, "error");
+            setIsRegistering(false);
             return;
           }
 
-          const data = await safeFetch("/api/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              username: form.username.value.trim(),
-              email: form.email.value.trim() || null,
-              password: form.password.value,
-              role: form.role.value,
-              municipalityId: form.municipalityId.value,
-            }),
-          });
+          try {
+            const res = await fetch("/api/register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                username: form.username.value.trim(),
+                email: form.email.value.trim() || null,
+                password: form.password.value,
+                role: form.role.value,
+                municipalityId: form.municipalityId.value,
+              }),
+            });
+            const data = await res.json().catch(() => ({}));
 
-          if (data?.success) {
-            alert("Registration successful! Please login.");
-            setPage("home");
+            if (!res.ok) {
+              const errMsg = data.error || "Registration failed. Please try again.";
+              setRegisterError(errMsg);
+              showToast(errMsg, "error");
+              return;
+            }
+
+            if (data?.success) {
+              showToast(data.message || "Registration successful! Please login.", "success");
+              setLoginError("");
+              setRegisterError("");
+              setPage("home");
+            }
+          } catch (err) {
+            const netErr = "Network error: Unable to complete registration.";
+            setRegisterError(netErr);
+            showToast(netErr, "error");
+          } finally {
+            setIsRegistering(false);
           }
         };
 
@@ -675,22 +730,62 @@
                         </span>
                       </div>
 
-                      <div className="flex gap-2 mb-8 text-xs">
+                      <div className="flex gap-2 mb-6 text-xs">
                         <button
                           type="button"
-                          onClick={() => setPage("home")}
-                          className="flex-1 py-2 rounded-full bg-slate-800 text-slate-100 border border-white/10"
+                          onClick={() => {
+                            setPage("home");
+                            setLoginError("");
+                            setRegisterError("");
+                          }}
+                          className="flex-1 py-2 rounded-full bg-slate-800 text-slate-100 border border-white/10 font-medium"
                         >
                           Login
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPage("register")}
+                          onClick={() => {
+                            setPage("register");
+                            setLoginError("");
+                            setRegisterError("");
+                          }}
                           className="flex-1 py-2 rounded-full bg-transparent text-slate-300 border border-transparent hover:border-white/20 hover:bg-white/5 transition"
                         >
                           Register
                         </button>
                       </div>
+
+                      {loginError && (
+                        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-500/40 bg-rose-500/15 p-4 text-xs text-rose-200 animate-slide-up shadow-lg">
+                          <svg
+                            className="h-5 w-5 flex-shrink-0 text-rose-400 mt-0.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            />
+                          </svg>
+                          <div className="flex-1 leading-relaxed">
+                            <span className="font-semibold text-rose-100 block mb-0.5">
+                              Login Failed
+                            </span>
+                            <span>{loginError}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setLoginError("")}
+                            className="text-rose-400 hover:text-white transition text-base leading-none p-1"
+                            title="Dismiss"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
 
                       <form onSubmit={handleLogin} className="space-y-5">
                         <div className="space-y-2">
@@ -721,9 +816,20 @@
 
                         <button
                           type="submit"
-                          className="mt-4 w-full rounded-xl bg-gradient-to-r from-primary-500 via-accent-500 to-emerald-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-primary-900/40 hover:brightness-110 transition"
+                          disabled={isLoggingIn}
+                          className="mt-4 w-full rounded-xl bg-gradient-to-r from-primary-500 via-accent-500 to-emerald-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-primary-900/40 hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                          Login
+                          {isLoggingIn ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                              </svg>
+                              <span>Authenticating...</span>
+                            </>
+                          ) : (
+                            "Login"
+                          )}
                         </button>
                       </form>
 
@@ -737,6 +843,13 @@
                 </div>
               </div>
               <Footer />
+              {toast && (
+                <Toast
+                  message={toast.message}
+                  type={toast.type}
+                  onClose={hideToast}
+                />
+              )}
             </div>
           );
         }
@@ -749,7 +862,11 @@
                 <div className="w-full max-w-3xl">
                   <div className="mb-6 flex items-center justify-between">
                     <button
-                      onClick={() => setPage("home")}
+                      onClick={() => {
+                        setPage("home");
+                        setLoginError("");
+                        setRegisterError("");
+                      }}
                       className="inline-flex items-center text-xs text-slate-300 hover:text-white transition"
                     >
                       <span className="mr-1">←</span> Back to Login
@@ -769,6 +886,38 @@
                         Choose your role as citizen or municipality official to
                         access the respective dashboards.
                       </p>
+
+                      {registerError && (
+                        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-500/40 bg-rose-500/15 p-4 text-xs text-rose-200 animate-slide-up shadow-lg">
+                          <svg
+                            className="h-5 w-5 flex-shrink-0 text-rose-400 mt-0.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            />
+                          </svg>
+                          <div className="flex-1 leading-relaxed">
+                            <span className="font-semibold text-rose-100 block mb-0.5">
+                              Registration Failed
+                            </span>
+                            <span>{registerError}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setRegisterError("")}
+                            className="text-rose-400 hover:text-white transition text-base leading-none p-1"
+                            title="Dismiss"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
 
                       <form
                         onSubmit={handleRegister}
@@ -873,9 +1022,20 @@
                         <div className="md:col-span-2 mt-2">
                           <button
                             type="submit"
-                            className="w-full rounded-xl bg-gradient-to-r from-primary-500 via-accent-500 to-emerald-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-primary-900/40 hover:brightness-110 transition"
+                            disabled={isRegistering}
+                            className="w-full rounded-xl bg-gradient-to-r from-primary-500 via-accent-500 to-emerald-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-primary-900/40 hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
-                            Create Account
+                            {isRegistering ? (
+                              <>
+                                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                </svg>
+                                <span>Creating Account...</span>
+                              </>
+                            ) : (
+                              "Create Account"
+                            )}
                           </button>
                         </div>
                       </form>
@@ -883,7 +1043,11 @@
                       <p className="mt-6 text-[11px] text-slate-400 text-center">
                         Already registered?{" "}
                         <button
-                          onClick={() => setPage("home")}
+                          onClick={() => {
+                            setPage("home");
+                            setLoginError("");
+                            setRegisterError("");
+                          }}
                           className="text-accent-400 hover:underline"
                         >
                           Go to Login
@@ -894,6 +1058,13 @@
                 </div>
               </div>
               <Footer />
+              {toast && (
+                <Toast
+                  message={toast.message}
+                  type={toast.type}
+                  onClose={hideToast}
+                />
+              )}
             </div>
           );
         }

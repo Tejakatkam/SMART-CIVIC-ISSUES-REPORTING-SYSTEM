@@ -233,6 +233,12 @@ app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    if (!username || !password) {
+      return res
+        .status(400)
+        .json({ error: "Please enter both username and password." });
+    }
+
     // 1) Try normal users table first
     const [userRows] = await db.query(
       "SELECT * FROM users WHERE username = ?",
@@ -243,7 +249,9 @@ app.post("/api/login", async (req, res) => {
     if (dbUser) {
       const passwordOk = bcrypt.compareSync(password, dbUser.password);
       if (!passwordOk) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res
+          .status(401)
+          .json({ error: "Invalid password. Please check your credentials and try again." });
       }
 
       // block check for any user
@@ -279,12 +287,16 @@ app.post("/api/login", async (req, res) => {
     const appRow = appRows[0];
 
     if (!appRow) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(404).json({
+        error: "This user doesn't exist in the database. Please check your username or register.",
+      });
     }
 
     const passwordOk = bcrypt.compareSync(password, appRow.password_hash);
     if (!passwordOk) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res
+        .status(401)
+        .json({ error: "Invalid password. Please check your credentials and try again." });
     }
 
     // Check application status
@@ -615,7 +627,12 @@ app.post("/api/register", async (req, res) => {
     return res.status(400).json({ error: "Invalid role" });
   } catch (err) {
     console.error("Register error:", err);
-    res.status(500).json({ error: "Server error" });
+    if (err.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        error: "This username or email is already registered. Please choose another or login.",
+      });
+    }
+    res.status(500).json({ error: "Server error during registration. Please try again." });
   }
 });
 
@@ -740,6 +757,11 @@ app.get("/api/admin/official-applications", requireAdmin, async (req, res) => {
 // ---------- ADMIN AUTH & MANAGEMENT ROUTES ----------
 app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
+  if (!username || !password) {
+    return res
+      .status(400)
+      .json({ error: "Please enter both username and password." });
+  }
   try {
     const [rows] = await db.query(
       'SELECT * FROM users WHERE username = ? AND role = "admin"',
@@ -747,12 +769,16 @@ app.post("/api/admin/login", async (req, res) => {
     );
     const admin = rows[0];
     if (!admin) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(404).json({
+        error: "This admin user doesn't exist in the database.",
+      });
     }
 
     const ok = bcrypt.compareSync(password, admin.password);
     if (!ok) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res
+        .status(401)
+        .json({ error: "Invalid password. Please check your credentials and try again." });
     }
 
     req.session.userId = admin.id;

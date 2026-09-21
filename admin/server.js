@@ -65,6 +65,11 @@ app.get("/", (req, res) => {
 // ---------- ADMIN LOGIN ----------
 app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
+  if (!username || !password) {
+    return res
+      .status(400)
+      .json({ error: "Please enter both username and password." });
+  }
   try {
     const [rows] = await db.query(
       'SELECT * FROM users WHERE username = ? AND role = "admin"',
@@ -72,12 +77,16 @@ app.post("/api/admin/login", async (req, res) => {
     );
     const admin = rows[0];
     if (!admin) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(404).json({
+        error: "This admin user doesn't exist in the database.",
+      });
     }
 
     const ok = bcrypt.compareSync(password, admin.password);
     if (!ok) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res
+        .status(401)
+        .json({ error: "Invalid password. Please check your credentials and try again." });
     }
 
     req.session.userId = admin.id;
