@@ -30,8 +30,8 @@ module.exports = async (req, res) => {
     port: 465,
     secure: true,
     auth: {
-      user: process.env.EMAIL_USER || "smartcivicissuereportingsystem@gmail.com",
-      pass: process.env.EMAIL_PASS || "exkm tmea ghdu fcdm",
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
     connectionTimeout: 8000,
     socketTimeout: 8000,
